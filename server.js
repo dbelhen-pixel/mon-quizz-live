@@ -21,13 +21,29 @@ io.on('connection', (socket) => {
     io.emit('updateLeaderboard', Object.values(players));
   });
 
-  // L'animateur lance ou avance la question
+ // L'animateur lance ou avance la question
   socket.on('nextQuestion', () => {
+    // Si le quizz était arrivé à la fin et qu'on le relance, on revient au début
+    if (currentQuestionIndex >= questions.length - 1) {
+      currentQuestionIndex = -1;
+    }
+
     currentQuestionIndex++;
+
     if (currentQuestionIndex < questions.length) {
       timeLeft = 10;
       isPaused = false;
-      // Réinitialiser le statut de réponse des joueurs
+      
+      // CRUCIAL : Au tout premier lancement (première question), on remet les scores à 0
+      if (currentQuestionIndex === 0) {
+        for (let id in players) {
+          players[id].score = 0;
+        }
+        // On envoie immédiatement le classement mis à jour (tous à 0) aux écrans
+        io.emit('updateLeaderboard', Object.values(players));
+      }
+
+      // Réinitialiser le statut de réponse des joueurs pour la nouvelle question
       for(let id in players) players[id].hasAnswered = false;
       
       io.emit('newQuestion', {
