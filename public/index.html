@@ -94,15 +94,18 @@
             document.getElementById('timer-display').innerText = "Chronomètre masqué par l'animateur";
         });
 
-       socket.on('timeUp', (data) => {
-            // data contient maintenant data.correctIndex et data.comment
+socket.on('timeUp', (data) => {
             let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
+            
+            // Si c'est la dernière question, on prépare un gros message de fin
+            let messageFin = data.isLastQuestion ? `<h2 style="color:#dc3545; margin-top:20px;">🏁 Le questionnaire est terminé ! 🏁</h2>` : "";
             
             document.getElementById('options-container').innerHTML = `
                 <h3 style="color:green;">Le temps est écoulé ! La bonne réponse était la n°${data.correctIndex + 1}</h3>
                 <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 5px solid #007bff;">
                     <strong>💡 À savoir :</strong> ${commentaire}
                 </div>
+                ${messageFin}
             `;
         });
 
