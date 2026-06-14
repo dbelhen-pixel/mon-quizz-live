@@ -53,11 +53,12 @@ io.on('connection', (socket) => {
         options: questions[currentQuestionIndex].options,
         timeLeft: timeLeft
       });
-      startTimer();
-    } else {
-      io.emit('gameOver', Object.values(players));
-    }
-  });
+// On envoie la bonne réponse, le commentaire ET on vérifie si c'est la dernière question
+        io.emit('timeUp', {
+          correctIndex: questions[currentQuestionIndex].correctIndex,
+          comment: questions[currentQuestionIndex].comment,
+          isLastQuestion: currentQuestionIndex === questions.length - 1
+        });
 
   // Gestion du Chronomètre par l'animateur
   socket.on('pauseTimer', () => { isPaused = true; });
