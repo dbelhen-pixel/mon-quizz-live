@@ -65,16 +65,16 @@ io.on('connection', (socket) => {
     io.emit('timeStopped');
   });
 
-  // Le joueur répond
+// Le joueur répond
   socket.on('submitAnswer', (answerIndex) => {
     let player = players[socket.id];
     if (player && !player.hasAnswered && currentQuestionIndex >= 0) {
       player.hasAnswered = true;
       if (answerIndex === questions[currentQuestionIndex].correctIndex) {
-        // Ajoute les points
+        // Les points sont calculés en secret sur le serveur
         player.score += questions[currentQuestionIndex].points; 
       }
-      io.emit('updateLeaderboard', Object.values(players));
+      // LA LIGNE io.emit('updateLeaderboard') A ÉTÉ RETIRÉE D'ICI
     }
   });
 
