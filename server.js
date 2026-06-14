@@ -92,7 +92,11 @@ function startTimer() {
       io.emit('timerUpdate', timeLeft);
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
-        // On envoie un objet contenant l'index ET le commentaire
+        
+        // CHANGEMENT : On révèle le classement mis à jour uniquement maintenant
+        io.emit('updateLeaderboard', Object.values(players));
+
+        // On envoie la bonne réponse et le commentaire
         io.emit('timeUp', {
           correctIndex: questions[currentQuestionIndex].correctIndex,
           comment: questions[currentQuestionIndex].comment
