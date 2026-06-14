@@ -13,6 +13,7 @@
         .btn-option:hover { background: #d3d9df; }
         .admin-controls { background: #ffeeba; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         #timer { font-size: 3em; font-weight: bold; color: #dc3545; }
+        .input-text { width: 90%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -26,25 +27,55 @@
         <button class="btn" onclick="joinGame()">Rejoindre le Quizz</button>
         <br><br><br>
         <button class="btn" style="background:#28a745;" onclick="becomeHost()">Je suis l'animateur</button>
+        <button class="btn" style="background:#6c757d;" onclick="openAdminPanel()">⚙️ Administration</button>
+    </div>
+
+    <div id="admin-screen" class="hidden">
+        <h2>Gestion des Questions</h2>
+        <button class="btn" style="background:#6c757d;" onclick="returnToLogin()">Retour à l'accueil</button>
+        <button class="btn" style="background:#28a745;" onclick="openQuestionForm(-1)">+ Nouvelle Question</button>
+        <hr>
+        
+        <div id="questions-list"></div>
+
+        <div id="question-form" class="hidden" style="background: #fff; padding: 20px; border-radius: 8px; text-align: left; max-width: 600px; margin: 20px auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+            <h3 id="form-title">Ajouter une question</h3>
+            <input type="hidden" id="q-index">
+            
+            <label><strong>Question :</strong></label><br>
+            <input type="text" id="q-text" class="input-text" placeholder="Ex: Quelle est la capitale de la France ?"><br>
+            
+            <label><strong>Options de réponse (séparées par une virgule) :</strong></label><br>
+            <input type="text" id="q-options" class="input-text" placeholder="Ex: Paris, Lyon, Marseille"><br>
+            
+            <label><strong>Numéro de la bonne réponse (0 pour la 1ère, 1 pour la 2ème...) :</strong></label><br>
+            <input type="number" id="q-correct" class="input-text" min="0"><br>
+            
+            <label><strong>Commentaire / Explication :</strong></label><br>
+            <textarea id="q-comment" class="input-text" rows="3" placeholder="Ex: Paris est la capitale depuis..."></textarea><br>
+            
+            <label><strong>Points attribués :</strong></label><br>
+            <input type="number" id="q-points" class="input-text" value="10"><br>
+
+            <div style="text-align: center; margin-top: 15px;">
+                <button class="btn" style="background:#28a745;" onclick="saveQuestion()">Enregistrer</button>
+                <button class="btn" style="background:#dc3545;" onclick="closeQuestionForm()">Annuler</button>
+            </div>
+        </div>
     </div>
 
     <div id="game-screen" class="hidden">
-        
         <div id="host-controls" class="admin-controls hidden">
             <h3>Contrôles Animateur</h3>
-            
             <h4 id="host-tally" style="color: #007bff; margin-bottom: 15px;">Réponses : 0 / 0</h4>
-            
             <button class="btn" onclick="socket.emit('nextQuestion')">Lancer / Question Suivante</button>
             <button class="btn" onclick="socket.emit('pauseTimer')">⏸️ Pause Chrono</button>
             <button class="btn" onclick="socket.emit('resumeTimer')">▶️ Reprendre Chrono</button>
-    </div>
+        </div>
 
         <div id="timer-display">Temps restant : <span id="timer">10</span>s</div>
-        
         <h2 id="question-text">En attente de l'animateur...</h2>
         <div id="options-container"></div>
-
         <hr>
         <h3>Classement</h3>
         <ul id="leaderboard" style="list-style-type: none; padding: 0; font-size: 1.2em;"></ul>
@@ -53,7 +84,9 @@
     <script>
         const socket = io();
         let isHost = false;
+        let localQuestions = []; // Stocke les questions côté client pour l'admin
 
+        // --- NAVIGATION ACCUEIL ---
         function joinGame() {
             const pseudo = document.getElementById('pseudo').value;
             if(!pseudo) return alert('Veuillez entrer un pseudo');
@@ -69,8 +102,89 @@
             document.getElementById('host-controls').classList.remove('hidden');
         }
 
+        // --- PARTIE ADMIN ---
+        function openAdminPanel() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('admin-screen').classList.remove('hidden');
+            socket.emit('getQuestions');
+        }
+
+        function returnToLogin() {
+            document.getElementById('admin-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+        }
+
+        socket.on('questionsList', (questions) => {
+            localQuestions = questions;
+            const listDiv = document.getElementById('questions-list');
+            listDiv.innerHTML = '';
+            
+            questions.forEach((q, index) => {
+                listDiv.innerHTML += `
+                    <div style="background:#e9ecef; margin:10px auto; padding:15px; border-radius:5px; text-align:left; max-width:600px;">
+                        <strong>Question ${index + 1} :</strong> ${q.question}
+                        <div style="margin-top: 10px;">
+                            <button class="btn" style="font-size:12px; padding:5px 10px;" onclick="openQuestionForm(${index})">✏️ Modifier</button>
+                            <button class="btn" style="font-size:12px; padding:5px 10px; background:#dc3545;" onclick="deleteQuestion(${index})">🗑️ Supprimer</button>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+
+        function openQuestionForm(index) {
+            document.getElementById('question-form').classList.remove('hidden');
+            
+            if (index >= 0) {
+                // Modification
+                document.getElementById('form-title').innerText = `Modifier la question ${index + 1}`;
+                const q = localQuestions[index];
+                document.getElementById('q-index').value = index;
+                document.getElementById('q-text').value = q.question;
+                document.getElementById('q-options').value = q.options.join(', ');
+                document.getElementById('q-correct').value = q.correctIndex;
+                document.getElementById('q-comment').value = q.comment || "";
+                document.getElementById('q-points').value = q.points || 10;
+            } else {
+                // Création
+                document.getElementById('form-title').innerText = "Nouvelle question";
+                document.getElementById('q-index').value = -1;
+                document.getElementById('q-text').value = "";
+                document.getElementById('q-options').value = "";
+                document.getElementById('q-correct').value = "0";
+                document.getElementById('q-comment').value = "";
+                document.getElementById('q-points').value = "10";
+            }
+        }
+
+        function closeQuestionForm() {
+            document.getElementById('question-form').classList.add('hidden');
+        }
+
+        function saveQuestion() {
+            const index = parseInt(document.getElementById('q-index').value);
+            const optionsArray = document.getElementById('q-options').value.split(',').map(opt => opt.trim());
+            
+            const newQuestion = {
+                question: document.getElementById('q-text').value,
+                options: optionsArray,
+                correctIndex: parseInt(document.getElementById('q-correct').value),
+                comment: document.getElementById('q-comment').value,
+                points: parseInt(document.getElementById('q-points').value)
+            };
+
+            socket.emit('saveQuestion', { index: index, question: newQuestion });
+            closeQuestionForm();
+        }
+
+        function deleteQuestion(index) {
+            if (confirm("Êtes-vous sûr de vouloir supprimer cette question ?")) {
+                socket.emit('deleteQuestion', index);
+            }
+        }
+
+        // --- PARTIE JEU & SOCKETS ---
         socket.on('newQuestion', (data) => {
-            // Affichage du compteur devant la question
             document.getElementById('question-text').innerText = `Question ${data.questionNumber}/${data.totalQuestions} : ${data.question}`;
             document.getElementById('timer').innerText = data.timeLeft;
             const optionsDiv = document.getElementById('options-container');
@@ -80,7 +194,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'btn btn-option';
                 btn.innerText = opt;
-                if(!isHost) { // Seuls les joueurs peuvent cliquer
+                if(!isHost) {
                     btn.onclick = () => {
                         socket.emit('submitAnswer', index);
                         optionsDiv.innerHTML = '<h3>Réponse enregistrée, attendez...</h3>';
@@ -90,7 +204,6 @@
             });
         });
 
-        // Mise à jour en direct du compteur de réponses pour l'animateur
         socket.on('answerTallyUpdate', (data) => {
             if (isHost) {
                 document.getElementById('host-tally').innerText = `Réponses : ${data.answered} / ${data.total}`;
@@ -101,14 +214,8 @@
             document.getElementById('timer').innerText = timeLeft;
         });
 
-        socket.on('timeStopped', () => {
-            document.getElementById('timer-display').innerText = "Chronomètre masqué par l'animateur";
-        });
-
         socket.on('timeUp', (data) => {
             let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
-            
-            // Si c'est la dernière question, on prépare un gros message de fin
             let messageFin = data.isLastQuestion ? `<h2 style="color:#dc3545; margin-top:20px;">🏁 Le questionnaire est terminé ! 🏁</h2>` : "";
             
             document.getElementById('options-container').innerHTML = `
@@ -121,7 +228,6 @@
         });
 
         socket.on('updateLeaderboard', (players) => {
-            // Trie les joueurs par score décroissant
             players.sort((a, b) => b.score - a.score);
             const lbDiv = document.getElementById('leaderboard');
             lbDiv.innerHTML = '';
