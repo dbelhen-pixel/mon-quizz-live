@@ -79,4 +79,63 @@
             
             data.options.forEach((opt, index) => {
                 const btn = document.createElement('button');
-                btn.className = 'btn
+                btn.className = 'btn btn-option';
+                btn.innerText = opt;
+                if(!isHost) { // Seuls les joueurs peuvent cliquer
+                    btn.onclick = () => {
+                        socket.emit('submitAnswer', index);
+                        optionsDiv.innerHTML = '<h3>Réponse enregistrée, attendez...</h3>';
+                    };
+                }
+                optionsDiv.appendChild(btn);
+            });
+        });
+
+        // Mise à jour en direct du compteur de réponses pour l'animateur
+        socket.on('answerTallyUpdate', (data) => {
+            if (isHost) {
+                document.getElementById('host-tally').innerText = `Réponses : ${data.answered} / ${data.total}`;
+            }
+        });
+
+        socket.on('timerUpdate', (timeLeft) => {
+            document.getElementById('timer').innerText = timeLeft;
+        });
+
+        socket.on('timeStopped', () => {
+            document.getElementById('timer-display').innerText = "Chronomètre masqué par l'animateur";
+        });
+
+        socket.on('timeUp', (data) => {
+            let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
+            
+            // Si c'est la dernière question, on prépare un gros message de fin
+            let messageFin = data.isLastQuestion ? `<h2 style="color:#dc3545; margin-top:20px;">🏁 Le questionnaire est terminé ! 🏁</h2>` : "";
+            
+            document.getElementById('options-container').innerHTML = `
+                <h3 style="color:green;">Le temps est écoulé ! La bonne réponse était la n°${data.correctIndex + 1}</h3>
+                <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 5px solid #007bff;">
+                    <strong>💡 À savoir :</strong> ${commentaire}
+                </div>
+                ${messageFin}
+            `;
+        });
+
+        socket.on('updateLeaderboard', (players) => {
+            // Trie les joueurs par score décroissant
+            players.sort((a, b) => b.score - a.score);
+            const lbDiv = document.getElementById('leaderboard');
+            lbDiv.innerHTML = '';
+            players.forEach(p => {
+                lbDiv.innerHTML += `<li>${p.pseudo} : <strong>${p.score}</strong> pts</li>`;
+            });
+        });
+
+        socket.on('gameOver', (players) => {
+            document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
+            document.getElementById('options-container').innerHTML = "";
+            document.getElementById('timer-display').innerHTML = "";
+        });
+    </script>
+</body>
+</html>
