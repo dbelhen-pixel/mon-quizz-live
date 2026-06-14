@@ -1,1 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Quizz Live</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
+        .hidden { display: none; }
+        .btn { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; }
+        .btn-option { display: block; width: 80%; margin: 10px auto; background: #e9ecef; color: #333; }
+        .btn-option:hover { background: #d3d9df; }
+        .admin-controls { background: #ffeeba; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        #timer { font-size: 3em; font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body>
 
+    <div id="login-screen">
+        <h1>Bienvenue sur le Quizz</h1>
+        <input type="text" id="pseudo" placeholder="Entrez votre pseudo" style="padding:10px; font-size:16px;">
+        <br><br>
+        <button class="btn" onclick="joinGame()">Rejoindre le Quizz</button>
+        <br><br><br>
+        <button class="btn" style="background:#28a745;" onclick="becomeHost()">Je suis l'animateur</button>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        
+        <div id="host-controls" class="admin-controls hidden">
+            <h3>Contrôles Animateur</h3>
+            <button class="btn" onclick="socket.emit('nextQuestion')">Lancer / Question Suivante</button>
+            <button class="btn" onclick="socket.emit('pauseTimer')">⏸️ Pause Chrono</button>
+            <button class="btn" onclick="socket.emit('resumeTimer')">▶️ Reprendre Chrono</button>
+            <button class="btn" onclick="socket.emit('stopTimer')" style="background:#dc3545;">⏹️ Stopper Affichage Chrono</button>
+        </div>
+
+        <div id="timer-display">Temps restant : <span id="timer">10</span>s</div>
+        
+        <h2 id="question-text">En attente de l'animateur...</h2>
+        <div id="options-container"></div>
+
+        <hr>
+        <h3>Classement en direct</h3>
+        <ul id="leaderboard" style="list-style-type: none; padding: 0; font-size: 1.2em;"></ul>
+    </div>
+
+    <script>
+        const socket = io();
+        let isHost = false;
+
+        function joinGame() {
+            const pseudo = document.getElementById('pseudo').value;
+            if(!pseudo) return alert('Veuillez entrer un pseudo');
+            socket.emit('joinGame', pseudo);
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+        }
+
+        function becomeHost() {
+            isHost = true;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('host-controls').classList.remove('hidden');
+        }
+
+        socket.on('newQuestion', (data) => {
+            document.getElementById('question-text').innerText = data.question;
+            document.getElementById('timer').innerText = data.timeLeft;
+            const optionsDiv = document.getElementById('options-container');
+            optionsDiv.innerHTML = '';
+            
+            data.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-option';
+                btn.innerText = opt;
+                if(!isHost) { // Seuls les joueurs peuvent cliquer
+                    btn.onclick = () => {
+                        socket.emit('submitAnswer', index);
+                        optionsDiv.innerHTML = '<h3>Réponse enregistrée, attendez...</h3>';
+                    };
+                }
+                optionsDiv.appendChild(btn);
+            });
+        });
+
+        socket.on('timerUpdate', (timeLeft) => {
+            document.getElementById('timer').innerText = timeLeft;
+        });
+
+        socket.on('timeStopped', () => {
+            document.getElementById('timer-display').innerText = "Chronomètre masqué par l'animateur";
+        });
+
+       socket.on('timeUp', (data) => {
+            // data contient maintenant data.correctIndex et data.comment
+            let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
+            
+            document.getElementById('options-container').innerHTML = `
+                <h3 style="color:green;">Le temps est écoulé ! La bonne réponse était la n°${data.correctIndex + 1}</h3>
+                <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 5px solid #007bff;">
+                    <strong>💡 À savoir :</strong> ${commentaire}
+                </div>
+            `;
+        });
+
+        socket.on('updateLeaderboard', (players) => {
+            // Trie les joueurs par score décroissant
+            players.sort((a, b) => b.score - a.score);
+            const lbDiv = document.getElementById('leaderboard');
+            lbDiv.innerHTML = '';
+            players.forEach(p => {
+                lbDiv.innerHTML += `<li>${p.pseudo} : <strong>${p.score}</strong> pts</li>`;
+            });
+        });
+
+        socket.on('gameOver', (players) => {
+            document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
+            document.getElementById('options-container').innerHTML = "";
+            document.getElementById('timer-display').innerHTML = "";
+        });
+    </script>
+</body>
+</html>
