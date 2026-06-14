@@ -22,11 +22,13 @@ io.on('connection', (socket) => {
   });
 
  // L'animateur lance ou avance la question
-  socket.on('nextQuestion', () => {
-    // Si le quizz était arrivé à la fin et qu'on le relance, on revient au début
-    if (currentQuestionIndex >= questions.length - 1) {
-      currentQuestionIndex = -1;
-    }
+  io.emit('newQuestion', {
+        questionNumber: currentQuestionIndex + 1, // Le numéro de la question actuelle
+        totalQuestions: questions.length,         // Le nombre total de questions
+        question: questions[currentQuestionIndex].question,
+        options: questions[currentQuestionIndex].options,
+        timeLeft: timeLeft
+      });
 
     currentQuestionIndex++;
 
