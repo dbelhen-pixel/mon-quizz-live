@@ -66,7 +66,8 @@
         }
 
         socket.on('newQuestion', (data) => {
-            document.getElementById('question-text').innerText = data.question;
+            // Affichage du compteur devant la question
+            document.getElementById('question-text').innerText = `Question ${data.questionNumber}/${data.totalQuestions} : ${data.question}`;
             document.getElementById('timer').innerText = data.timeLeft;
             const optionsDiv = document.getElementById('options-container');
             optionsDiv.innerHTML = '';
@@ -75,7 +76,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'btn btn-option';
                 btn.innerText = opt;
-                if(!isHost) { // Seuls les joueurs peuvent cliquer
+                if(!isHost) {
                     btn.onclick = () => {
                         socket.emit('submitAnswer', index);
                         optionsDiv.innerHTML = '<h3>Réponse enregistrée, attendez...</h3>';
