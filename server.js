@@ -99,11 +99,6 @@ io.on('connection', (socket) => {
   // Contrôles de l'animateur
   socket.on('pauseTimer', () => { isPaused = true; });
   socket.on('resumeTimer', () => { isPaused = false; });
-  socket.on('stopTimer', () => {
-    clearInterval(timerInterval);
-    io.emit('timeStopped');
-  });
-
   // Déconnexion
   socket.on('disconnect', () => {
     console.log('Utilisateur déconnecté :', socket.id);
