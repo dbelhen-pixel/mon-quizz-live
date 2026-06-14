@@ -31,6 +31,11 @@ io.on('connection', (socket) => {
   socket.on('joinGame', (pseudo) => {
     players[socket.id] = { pseudo: pseudo, score: 0, hasAnswered: false };
     io.emit('updateLeaderboard', Object.values(players));
+    
+    // Mise à jour du compteur pour l'animateur si un joueur rejoint
+    let answeredCount = Object.values(players).filter(p => p.hasAnswered).length;
+    let totalPlayers = Object.keys(players).length;
+    io.emit('answerTallyUpdate', { answered: answeredCount, total: totalPlayers });
   });
 
   // L'animateur lance ou avance la question
@@ -57,6 +62,9 @@ io.on('connection', (socket) => {
       // Réinitialiser le statut de réponse des joueurs pour la nouvelle question
       for(let id in players) players[id].hasAnswered = false;
       
+      // On informe l'animateur que le compteur repart à 0 pour cette question
+      io.emit('answerTallyUpdate', { answered: 0, total: Object.keys(players).length });
+      
       io.emit('newQuestion', {
         questionNumber: currentQuestionIndex + 1,
         totalQuestions: questions.length,
@@ -73,11 +81,18 @@ io.on('connection', (socket) => {
   // Le joueur répond
   socket.on('submitAnswer', (answerIndex) => {
     let player = players[socket.id];
+    
     if (player && !player.hasAnswered && currentQuestionIndex >= 0) {
-      player.hasAnswered = true;
+      player.hasAnswered = true; // On marque que le joueur a voté
+      
       if (answerIndex === questions[currentQuestionIndex].correctIndex) {
         player.score += questions[currentQuestionIndex].points; 
       }
+      
+      // On compte combien de joueurs ont répondu et on met à jour l'animateur
+      let answeredCount = Object.values(players).filter(p => p.hasAnswered).length;
+      let totalPlayers = Object.keys(players).length;
+      io.emit('answerTallyUpdate', { answered: answeredCount, total: totalPlayers });
     }
   });
 
@@ -94,6 +109,11 @@ io.on('connection', (socket) => {
     console.log('Utilisateur déconnecté :', socket.id);
     delete players[socket.id];
     io.emit('updateLeaderboard', Object.values(players));
+    
+    // Si un joueur quitte brutalement, on corrige le compteur de l'animateur
+    let answeredCount = Object.values(players).filter(p => p.hasAnswered).length;
+    let totalPlayers = Object.keys(players).length;
+    io.emit('answerTallyUpdate', { answered: answeredCount, total: totalPlayers });
   });
 });
 
