@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mon Quizz Live Pro</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
@@ -91,6 +90,7 @@
             <button class="btn" style="background:#28a745;" onclick="socket.emit('resumeTimer')">▶️ Reprendre</button>
             <button class="btn" style="background:#17a2b8;" onclick="toggleQRCode()">📱 Afficher QR Code</button>
             <button class="btn" style="background:#28a745;" onclick="exportCSV()">📊 Exporter les résultats (CSV)</button>
+            <button class="btn" style="background:#dc3545;" onclick="resetQuiz()">🔄 Réinitialiser le Quizz</button>
             
             <div id="qrcode-area" style="margin-top:15px; display:none;">
                 <img id="qrcode-img" src="" alt="Flashez-moi !" style="border: 4px solid #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -116,21 +116,9 @@
         let latestLeaderboard = [];
 
         // --- GÉNÉRATEUR D'EFFETS SONORES (AudioContext) ---
-// Variable globale pour stocker l'AudioContext
-        let audioCtx = null;
-
         function playSound(frequency, type, duration) {
-            // Création automatique lors du premier appel
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            
-            // Si le contexte est suspendu (bloqué par le navigateur), on le réactive
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-
             try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 oscillator.type = type;
@@ -141,9 +129,7 @@
                 gainNode.connect(audioCtx.destination);
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + duration);
-            } catch (e) { 
-                console.log("Erreur son ignorée :", e); 
-            }
+            } catch (e) { console.warn("L'Audio n'a pas pu s'initialiser."); }
         }
 
         // --- INTERFACE DE JEU ---
@@ -186,6 +172,12 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        function resetQuiz() {
+            if (confirm("⚠️ Réinitialiser le quizz ? Les scores de tous les joueurs seront remis à zéro et la partie repartira du début.")) {
+                socket.emit('resetQuiz');
+            }
         }
 
         // --- GESTION DE L'ADMINISTRATION ---
@@ -359,6 +351,17 @@
             players.forEach((p, idx) => {
                 lbDiv.innerHTML += `<li>${idx + 1}. ${p.pseudo} : <strong>${p.score}</strong> pts</li>`;
             });
+        });
+
+        socket.on('quizReset', () => {
+            playSound(330, 'sine', 0.15); // Petit son de notification
+
+            document.getElementById('question-text').innerText = "En attente du lancement par l'animateur...";
+            document.getElementById('options-container').innerHTML = '';
+            document.getElementById('stats-container').innerHTML = '';
+            document.getElementById('question-media').classList.add('hidden');
+            document.getElementById('timer-display').innerHTML = 'Temps restant : <span id="timer">10</span>s';
+            if (isHost) document.getElementById('host-tally').innerText = `Réponses : 0 / 0`;
         });
 
         socket.on('gameOver', (players) => {
