@@ -197,8 +197,9 @@ function startTimer() {
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
         io.emit('updateLeaderboard', Object.values(players));
-        io.emit('timeUp', {
+io.emit('timeUp', {
           correctIndex: questions[currentQuestionIndex].correctIndex,
+          correctText: questions[currentQuestionIndex].options[questions[currentQuestionIndex].correctIndex],
           comment: questions[currentQuestionIndex].comment,
           isLastQuestion: currentQuestionIndex === questions.length - 1
         });
