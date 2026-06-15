@@ -121,6 +121,7 @@ io.on('connection', (socket) => {
       });
       startTimer();
     } else {
+      clearInterval(timerInterval); // Stoppe le minuteur de la dernière question s'il tournait encore
       io.emit('gameOver', Object.values(players));
       currentQuestionIndex = -1; // Réinitialisation pour permettre de relancer un nouveau quizz
     }
@@ -185,7 +186,10 @@ function startTimer() {
       
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
-        
+
+        // Sécurité : si l'index de question n'est plus valide (ex: quizz terminé), on ne fait rien
+        if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) return;
+
         // Compilation des statistiques de vote pour cette question
         let stats = new Array(questions[currentQuestionIndex].options.length).fill(0);
         for (let sId in currentAnswers) {
