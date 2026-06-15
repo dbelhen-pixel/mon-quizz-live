@@ -6,7 +6,6 @@ const fs = require('fs');
 
 const PORT = process.env.PORT || 3000;
 
-// Variables d'environnement pour GitHub
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_REPO_OWNER;
 const GITHUB_REPO = process.env.GITHUB_REPO_NAME;
@@ -15,8 +14,14 @@ const FILE_PATH = 'questions.json';
 app.use(express.static('public'));
 
 let questions = [];
+let players = {};
+let currentQuestionIndex = -1;
+let timeLeft = 10;
+let totalTimeForQuestion = 10; // Stocke le temps initial de la question en cours
+let timerInterval;
+let isPaused = false;
+let currentAnswers = {}; // Stocke les réponses des joueurs pour la question en cours ({ socketId: answerIndex })
 
-// Chargement initial local au démarrage
 function loadQuestions() {
   try {
     const data = fs.readFileSync('questions.json', 'utf8');
@@ -27,28 +32,21 @@ function loadQuestions() {
   }
 }
 
-// Sauvegarde locale ET envoi immédiat sur GitHub
 async function saveQuestionsToGitHub() {
-  // 1. Sauvegarde locale de sécurité
   try {
     fs.writeFileSync('questions.json', JSON.stringify(questions, null, 2), 'utf8');
   } catch (err) {
     console.error("Erreur d'écriture locale :", err);
   }
 
-  // 2. Vérification des identifiants GitHub
   if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) {
-    console.warn("⚠️ Configuration GitHub manquante sur Render. Sauvegarde uniquement locale.");
+    console.warn("⚠️ Configuration GitHub manquante. Sauvegarde uniquement locale.");
     return;
   }
 
   try {
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${FILE_PATH}`;
-    
-    // Récupérer le SHA du fichier existant (requis par l'API GitHub pour modifier un fichier)
-    const getRes = await fetch(url, {
-      headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-    });
+    const getRes = await fetch(url, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
     
     let sha = "";
     if (getRes.ok) {
@@ -56,10 +54,8 @@ async function saveQuestionsToGitHub() {
       sha = fileData.sha;
     }
 
-    // Encoder le nouveau contenu JSON en Base64
     const contentBase64 = Buffer.from(JSON.stringify(questions, null, 2)).toString('base64');
 
-    // Envoyer le commit sur GitHub
     const putRes = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -75,10 +71,10 @@ async function saveQuestionsToGitHub() {
     });
 
     if (putRes.ok) {
-      console.log("🚀 questions.json mis à jour avec succès sur GitHub !");
+      console.log("🚀 File questions.json synchronisé sur GitHub !");
     } else {
       const errData = await putRes.json();
-      console.error("❌ Erreur de l'API GitHub :", errData);
+      console.error("❌ Erreur API GitHub :", errData);
     }
   } catch (err) {
     console.error("❌ Échec de la connexion à l'API GitHub :", err);
@@ -87,22 +83,13 @@ async function saveQuestionsToGitHub() {
 
 loadQuestions();
 
-let players = {};
-let currentQuestionIndex = -1;
-let timeLeft = 10;
-let timerInterval;
-let isPaused = false;
-
 io.on('connection', (socket) => {
-  console.log('Un utilisateur s\'est connecté :', socket.id);
+  console.log('Utilisateur connecté :', socket.id);
 
   socket.on('joinGame', (pseudo) => {
     players[socket.id] = { pseudo: pseudo, score: 0, hasAnswered: false };
     io.emit('updateLeaderboard', Object.values(players));
-    
-    let answeredCount = Object.values(players).filter(p => p.hasAnswered).length;
-    let totalPlayers = Object.keys(players).length;
-    io.emit('answerTallyUpdate', { answered: answeredCount, total: totalPlayers });
+    io.emit('answerTallyUpdate', { answered: Object.values(players).filter(p => p.hasAnswered).length, total: Object.keys(players).length });
   });
 
   socket.on('nextQuestion', () => {
@@ -113,8 +100,11 @@ io.on('connection', (socket) => {
     currentQuestionIndex++;
 
     if (currentQuestionIndex < questions.length) {
-      timeLeft = 10;
+      // Configuration du temps personnalisé par question (par défaut 10s si non défini)
+      totalTimeForQuestion = questions[currentQuestionIndex].timer || 10;
+      timeLeft = totalTimeForQuestion;
       isPaused = false;
+      currentAnswers = {}; // Réinitialisation des statistiques de réponses
       
       if (currentQuestionIndex === 0) {
         for (let id in players) players[id].score = 0;
@@ -130,6 +120,7 @@ io.on('connection', (socket) => {
         totalQuestions: questions.length,
         question: questions[currentQuestionIndex].question,
         options: questions[currentQuestionIndex].options,
+        image: questions[currentQuestionIndex].image || "",
         timeLeft: timeLeft
       });
       startTimer();
@@ -142,9 +133,16 @@ io.on('connection', (socket) => {
     let player = players[socket.id];
     if (player && !player.hasAnswered && currentQuestionIndex >= 0) {
       player.hasAnswered = true; 
+      currentAnswers[socket.id] = answerIndex; // Enregistrement du choix pour les stats
+      
       if (answerIndex === questions[currentQuestionIndex].correctIndex) {
-        player.score += questions[currentQuestionIndex].points || 10; 
+        // Règle de rapidité : Base de 50% des points + bonus dégressif selon le temps restant
+        let maxPoints = questions[currentQuestionIndex].points || 10;
+        let timeRatio = timeLeft / totalTimeForQuestion;
+        let earnedPoints = Math.round(maxPoints * (0.5 + 0.5 * timeRatio));
+        player.score += (earnedPoints > 0 ? earnedPoints : 1);
       }
+      
       let answeredCount = Object.values(players).filter(p => p.hasAnswered).length;
       let totalPlayers = Object.keys(players).length;
       io.emit('answerTallyUpdate', { answered: answeredCount, total: totalPlayers });
@@ -154,11 +152,8 @@ io.on('connection', (socket) => {
   socket.on('pauseTimer', () => { isPaused = true; });
   socket.on('resumeTimer', () => { isPaused = false; });
 
-  // --- ADMINISTRATION SYNCHRONISÉE GITHUB ---
-
-  socket.on('getQuestions', () => {
-    socket.emit('questionsList', questions);
-  });
+  // --- INTERFACE ADMIN ---
+  socket.on('getQuestions', () => { socket.emit('questionsList', questions); });
 
   socket.on('saveQuestion', async (data) => {
     if (data.index >= 0) {
@@ -166,24 +161,21 @@ io.on('connection', (socket) => {
     } else {
       questions.push(data.question);
     }
-    // Appel de la fonction de synchronisation avec GitHub
     await saveQuestionsToGitHub();
     io.emit('questionsList', questions); 
   });
 
   socket.on('deleteQuestion', async (index) => {
     questions.splice(index, 1);
-    // Appel de la fonction de synchronisation avec GitHub
     await saveQuestionsToGitHub();
     io.emit('questionsList', questions);
   });
 
   socket.on('disconnect', () => {
     delete players[socket.id];
+    delete currentAnswers[socket.id];
     io.emit('updateLeaderboard', Object.values(players));
-    let answeredCount = Object.values(players).filter(p => p.hasAnswered).length;
-    let totalPlayers = Object.keys(players).length;
-    io.emit('answerTallyUpdate', { answered: answeredCount, total: totalPlayers });
+    io.emit('answerTallyUpdate', { answered: Object.values(players).filter(p => p.hasAnswered).length, total: Object.keys(players).length });
   });
 });
 
@@ -196,18 +188,26 @@ function startTimer() {
       
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
+        
+        // Compilation des statistiques de vote pour cette question
+        let stats = new Array(questions[currentQuestionIndex].options.length).fill(0);
+        for (let sId in currentAnswers) {
+          let ansIdx = currentAnswers[sId];
+          if (ansIdx >= 0 && ansIdx < stats.length) stats[ansIdx]++;
+        }
+
         io.emit('updateLeaderboard', Object.values(players));
-io.emit('timeUp', {
+        io.emit('timeUp', {
           correctIndex: questions[currentQuestionIndex].correctIndex,
           correctText: questions[currentQuestionIndex].options[questions[currentQuestionIndex].correctIndex],
+          options: questions[currentQuestionIndex].options,
           comment: questions[currentQuestionIndex].comment,
-          isLastQuestion: currentQuestionIndex === questions.length - 1
+          isLastQuestion: currentQuestionIndex === questions.length - 1,
+          stats: stats
         });
       }
     }
   }, 1000);
 }
 
-http.listen(PORT, () => {
-  console.log(`Serveur Quizz démarré sur le port ${PORT}`);
-});
+http.listen(PORT, () => { console.log(`Serveur démarré sur le port ${PORT}`); });
