@@ -20,11 +20,25 @@
         .stat-bar-container { background: #e9ecef; border-radius: 4px; height: 18px; width: 100%; margin-top: 4px; overflow: hidden; }
         .stat-bar { height: 100%; border-radius: 4px; width: 0%; transition: width 0.6s ease-out; }
         
-        /* Styles Podium Final */
-        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 200px; margin: 40px auto; max-width: 500px; padding-bottom: 10px; }
-        .podium-column { text-align: center; margin: 0 10px; width: 110px; display: flex; flex-direction: column-reverse; }
-        .podium-box { border-radius: 6px 6px 0 0; display: flex; flex-direction: column; justify-content: center; font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.15); animation: growUp 0.8s ease-out forwards; }
-        .podium-name { font-weight: bold; margin-bottom: 5px; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Styles Podium Final */
+        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 250px; margin: 40px auto; gap: 10px; }
+        .podium-column { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 120px; }
+        .podium-box { 
+            width: 100%; 
+            border-radius: 8px 8px 0 0; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: flex-start; 
+            align-items: center; 
+            padding-top: 15px; 
+            color: white; 
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.15); 
+            height: 0; /* Indispensable pour que l'animation parte de zéro */
+            overflow: hidden; 
+            animation: growUp 1s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
+        }
+        .podium-name { font-weight: bold; font-size: 16px; margin-top: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; }
+        .podium-score { font-size: 13px; opacity: 0.9; margin-top: 4px; }
         @keyframes growUp { from { height: 0; } to { height: var(--target-height); } }
     </style>
 </head>
