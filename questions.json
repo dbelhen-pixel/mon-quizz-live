@@ -3,11 +3,9 @@
     "question": "Quelle est la capitale de la BZH ?",
     "options": [
       "Lyon",
-      "Marseille",
-      "Paris",
-      "Bordeaux"
+      "Rennes"
     ],
-    "correctIndex": 2,
+    "correctIndex": 1,
     "comment": "Paris est la capitale de la France depuis la fin du Moyen Âge.",
     "points": 100
   },
