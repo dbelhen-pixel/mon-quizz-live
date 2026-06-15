@@ -1,136 +1,15 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mon Quizz Live Pro</title>
-    <script src="/socket.io/socket.io.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
-        .hidden { display: none; }
-        .btn { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; transition: background 0.2s; }
-        .btn:hover { opacity: 0.9; }
-        .btn-option { display: block; width: 80%; margin: 10px auto; background: #e9ecef; color: #333; font-weight: 600; }
-        .btn-option:hover { background: #d3d9df; }
-        .admin-controls { background: #ffeeba; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        #timer { font-size: 3em; font-weight: bold; color: #dc3545; transition: transform 0.1s; }
-        .input-text { width: 95%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        
-        /* Styles pour le graphique des statistiques */
-        .stat-bar-container { background: #e9ecef; border-radius: 4px; height: 18px; width: 100%; margin-top: 4px; overflow: hidden; }
-        .stat-bar { height: 100%; border-radius: 4px; width: 0%; transition: width 0.6s ease-out; }
-        
-/* Styles Podium Final Corrigés */
-        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 250px; margin: 40px auto; gap: 10px; overflow: hidden; }
-        .podium-column { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 120px; }
-        .podium-box { 
-            width: 100%; 
-            border-radius: 8px 8px 0 0; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: flex-start; 
-            align-items: center; 
-            padding-top: 15px; 
-            color: white; 
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.15); 
-            transform: translateY(100%); /* Les colonnes sont cachées vers le bas au départ */
-            animation: slideUp 0.8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
-        }
-        .podium-name { font-weight: bold; font-size: 16px; margin-top: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; }
-        .podium-score { font-size: 13px; opacity: 0.9; margin-top: 4px; }
-        @keyframes slideUp { to { transform: translateY(0); } } /* Elles remontent à leur position normale */
-    </style>
-</head>
-<body>
+// --- 1. Gestion du son sécurisée ---
+        let audioCtx = null;
 
-    <div id="login-screen">
-        <img src="accueil.png" alt="Illustration Facilitation" style="max-width: 100%; max-height: 220px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-        <h1>Bienvenue sur le Quizz</h1>
-        <input type="text" id="pseudo" placeholder="Entrez votre pseudo" style="padding:10px; font-size:16px; border-radius:4px; border:1px solid #ccc;">
-        <br><br>
-        <button class="btn" onclick="joinGame()">Rejoindre le Quizz</button>
-        <br><br><br>
-        <button class="btn" style="background:#28a745;" onclick="becomeHost()">Je suis l'animateur</button>
-        <button class="btn" style="background:#6c757d;" onclick="openAdminPanel()">⚙️ Administration</button>
-    </div>
-
-    <div id="admin-screen" class="hidden">
-        <h2>Gestion des Questions</h2>
-        <button class="btn" style="background:#6c757d;" onclick="returnToLogin()">Retour à l'accueil</button>
-        <button class="btn" style="background:#28a745;" onclick="openQuestionForm(-1)">+ Nouvelle Question</button>
-        <hr>
-        
-        <div id="questions-list"></div>
-
-        <div id="question-form" class="hidden" style="background: #fff; padding: 20px; border-radius: 8px; text-align: left; max-width: 600px; margin: 20px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-            <h3 id="form-title">Ajouter une question</h3>
-            <input type="hidden" id="q-index">
-            
-            <label><strong>Question :</strong></label>
-            <input type="text" id="q-text" class="input-text">
-            
-            <label><strong>Options de réponse (séparées par une virgule) :</strong></label>
-            <input type="text" id="q-options" class="input-text" placeholder="Ex: Rouge, Vert, Bleu">
-            
-            <label><strong>Numéro de la bonne réponse (0 pour la 1ère, 1 pour la 2ème...) :</strong></label>
-            <input type="number" id="q-correct" class="input-text" min="0" value="0">
-            
-            <label><strong>URL de l'image d'illustration (optionnel) :</strong></label>
-            <input type="text" id="q-image" class="input-text" placeholder="Ex: https://lien.com/image.png">
-
-            <label><strong>Temps de réponse de la question (en secondes) :</strong></label>
-            <input type="number" id="q-timer" class="input-text" min="5" value="10">
-            
-            <label><strong>Commentaire / Explication :</strong></label>
-            <textarea id="q-comment" class="input-text" rows="3"></textarea>
-            
-            <label><strong>Points attribués au maximum :</strong></label>
-            <input type="number" id="q-points" class="input-text" value="10">
-
-            <div style="text-align: center; margin-top: 15px;">
-                <button class="btn" style="background:#28a745;" onclick="saveQuestion()">Enregistrer</button>
-                <button class="btn" style="background:#dc3545;" onclick="closeQuestionForm()">Annuler</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="game-screen" class="hidden">
-        <div id="host-controls" class="admin-controls hidden">
-            <h3>Contrôles Animateur</h3>
-            <h4 id="host-tally" style="color: #007bff; margin: 5px 0 15px 0;">Réponses : 0 / 0</h4>
-            <button class="btn" onclick="socket.emit('nextQuestion')">Question Suivante / Lancer</button>
-            <button class="btn" style="background:#ffc107; color:#333;" onclick="socket.emit('pauseTimer')">⏸️ Pause</button>
-            <button class="btn" style="background:#28a745;" onclick="socket.emit('resumeTimer')">▶️ Reprendre</button>
-            <button class="btn" style="background:#17a2b8;" onclick="toggleQRCode()">📱 Afficher QR Code</button>
-            <button class="btn" style="background:#28a745;" onclick="exportCSV()">📊 Exporter les résultats (CSV)</button>
-            
-            <div id="qrcode-area" style="margin-top:15px; display:none;">
-                <img id="qrcode-img" src="" alt="Flashez-moi !" style="border: 4px solid #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            </div>
-        </div>
-
-        <div id="timer-display">Temps restant : <span id="timer">10</span>s</div>
-        
-        <img id="question-media" src="" class="hidden" style="max-width:90%; max-height:220px; margin: 15px auto; border-radius:8px; display:block; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
-        
-        <h2 id="question-text">En attente du lancement par l'animateur...</h2>
-        <div id="options-container"></div>
-        <div id="stats-container"></div>
-        <hr>
-        <h3>Classement en direct</h3>
-        <ul id="leaderboard" style="list-style-type: none; padding: 0; font-size: 1.2em;"></ul>
-    </div>
-
-    <script>
-        const socket = io();
-        let isHost = false;
-        let localQuestions = [];
-        let latestLeaderboard = [];
-
-        // --- GÉNÉRATEUR D'EFFETS SONORES (AudioContext) ---
         function playSound(frequency, type, duration) {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 oscillator.type = type;
@@ -141,239 +20,28 @@
                 gainNode.connect(audioCtx.destination);
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + duration);
-            } catch (e) { console.warn("L'Audio n'a pas pu s'initialiser."); }
-        }
-
-        // --- INTERFACE DE JEU ---
-        function joinGame() {
-            const pseudo = document.getElementById('pseudo').value;
-            if(!pseudo) return alert('Veuillez entrer un pseudo');
-            socket.emit('joinGame', pseudo);
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-        }
-
-        function becomeHost() {
-            isHost = true;
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.getElementById('host-controls').classList.remove('hidden');
-        }
-
-        function toggleQRCode() {
-            const container = document.getElementById('qrcode-area');
-            const img = document.getElementById('qrcode-img');
-            if (container.style.display === 'none') {
-                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href)}`;
-                container.style.display = 'block';
-            } else {
-                container.style.display = 'none';
+            } catch (e) {
+                console.warn("Audio non disponible, le jeu continue :", e);
             }
         }
 
-        function exportCSV() {
-            if(latestLeaderboard.length === 0) return alert("Aucune donnée disponible.");
-            let csvContent = "data:text/csv;charset=utf-8,Rang,Pseudo,Score\n";
-            latestLeaderboard.forEach((p, index) => {
-                csvContent += `${index + 1},"${p.pseudo.replace(/"/g, '""')}",${p.score}\n`;
-            });
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "resultats_quizz.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // --- GESTION DE L'ADMINISTRATION ---
-        function openAdminPanel() {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('admin-screen').classList.remove('hidden');
-            socket.emit('getQuestions');
-        }
-
-        function returnToLogin() {
-            document.getElementById('admin-screen').classList.add('hidden');
-            document.getElementById('login-screen').classList.remove('hidden');
-        }
-
-        socket.on('questionsList', (questions) => {
-            localQuestions = questions;
-            const listDiv = document.getElementById('questions-list');
-            listDiv.innerHTML = '';
-            questions.forEach((q, index) => {
-                listDiv.innerHTML += `
-                    <div style="background:#e9ecef; margin:10px auto; padding:15px; border-radius:5px; text-align:left; max-width:600px;">
-                        <strong>Q${index + 1} : ${q.question}</strong> <span style="font-size:12px; color:#555;">⏱️ ${q.timer || 10}s</span>
-                        <div style="margin-top: 10px;">
-                            <button class="btn" style="font-size:12px; padding:5px 10px;" onclick="openQuestionForm(${index})">✏️ Modifier</button>
-                            <button class="btn" style="font-size:12px; padding:5px 10px; background:#dc3545;" onclick="deleteQuestion(${index})">🗑️ Supprimer</button>
-                        </div>
-                    </div>
-                `;
-            });
-        });
-
-        function openQuestionForm(index) {
-            document.getElementById('question-form').classList.remove('hidden');
-            if (index >= 0) {
-                document.getElementById('form-title').innerText = `Modifier la question ${index + 1}`;
-                const q = localQuestions[index];
-                document.getElementById('q-index').value = index;
-                document.getElementById('q-text').value = q.question;
-                document.getElementById('q-options').value = q.options.join(', ');
-                document.getElementById('q-correct').value = q.correctIndex;
-                document.getElementById('q-image').value = q.image || "";
-                document.getElementById('q-timer').value = q.timer || 10;
-                document.getElementById('q-comment').value = q.comment || "";
-                document.getElementById('q-points').value = q.points || 10;
-            } else {
-                document.getElementById('form-title').innerText = "Nouvelle question";
-                document.getElementById('q-index').value = -1;
-                document.getElementById('q-text').value = "";
-                document.getElementById('q-options').value = "";
-                document.getElementById('q-correct').value = "0";
-                document.getElementById('q-image').value = "";
-                document.getElementById('q-timer').value = "10";
-                document.getElementById('q-comment').value = "";
-                document.getElementById('q-points').value = "10";
-            }
-        }
-
-        function closeQuestionForm() { document.getElementById('question-form').classList.add('hidden'); }
-
-        function saveQuestion() {
-            const index = parseInt(document.getElementById('q-index').value);
-            const optionsArray = document.getElementById('q-options').value.split(',').map(opt => opt.trim());
-            const newQuestion = {
-                question: document.getElementById('q-text').value,
-                options: optionsArray,
-                correctIndex: parseInt(document.getElementById('q-correct').value),
-                image: document.getElementById('q-image').value,
-                timer: parseInt(document.getElementById('q-timer').value) || 10,
-                comment: document.getElementById('q-comment').value,
-                points: parseInt(document.getElementById('q-points').value)
-            };
-            socket.emit('saveQuestion', { index: index, question: newQuestion });
-            closeQuestionForm();
-        }
-
-        function deleteQuestion(index) {
-            if (confirm("Supprimer définitivement cette question ?")) socket.emit('deleteQuestion', index);
-        }
-
-        // --- FLUX DE JEU INTERACTIF ---
-        socket.on('newQuestion', (data) => {
-            document.getElementById('stats-container').innerHTML = "";
-            document.getElementById('question-text').innerText = `Question ${data.questionNumber}/${data.totalQuestions} : ${data.question}`;
-            document.getElementById('timer').innerText = data.timeLeft;
-            
-            // Gestion de l'affichage de l'image d'illustration
-            const mediaImg = document.getElementById('question-media');
-            if (data.image && data.image.trim() !== "") {
-                mediaImg.src = data.image;
-                mediaImg.classList.remove('hidden');
-            } else {
-                mediaImg.classList.add('hidden');
-            }
-
-            const optionsDiv = document.getElementById('options-container');
-            optionsDiv.innerHTML = '';
-            
-            data.options.forEach((opt, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-option';
-                btn.innerText = opt;
-                if(!isHost) {
-                    btn.onclick = () => {
-                        socket.emit('submitAnswer', index);
-                        playSound(587.33, 'sine', 0.08); // Note D5 d'appui
-                        optionsDiv.innerHTML = '<h3>👍 Réponse enregistrée ! En attente de la fin du chrono...</h3>';
-                    };
-                }
-                optionsDiv.appendChild(btn);
-            });
-        });
-
-        socket.on('answerTallyUpdate', (data) => {
-            if (isHost) document.getElementById('host-tally').innerText = `Réponses : ${data.answered} / ${data.total}`;
-        });
-
-        socket.on('timerUpdate', (timeLeft) => {
-            document.getElementById('timer').innerText = timeLeft;
-            if(timeLeft <= 3 && timeLeft > 0) {
-                playSound(329.63, 'sine', 0.1); // Son d'alerte basse tension (E4)
-            } else {
-                playSound(440, 'sine', 0.03); // Tic-tac standard léger
-            }
-        });
-
-        socket.on('timeUp', (data) => {
-            playSound(220, 'sawtooth', 0.25); // Son indicateur de fin (A3)
-            let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
-            let messageFin = data.isLastQuestion ? `<h2 style="color:#dc3545; margin-top:20px;">🏁 Le questionnaire est terminé ! 🏁</h2>` : "";
-            
-            document.getElementById('options-container').innerHTML = `
-                <h3 style="color:green;">Fin du temps ! La bonne réponse était la n°${data.correctIndex + 1} : "${data.correctText}"</h3>
-                <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 5px solid #007bff; text-align:left;">
-                    <strong>💡 Complément :</strong> ${commentaire}
-                </div>
-                ${messageFin}
-            `;
-
-            // Rendu graphique des statistiques de réponse (Barres de répartition)
-            let totalVotes = data.stats.reduce((a, b) => a + b, 0) || 1;
-            let statsHtml = `<div style="margin-top:20px; text-align:left; background:#fff; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.05);">`;
-            statsHtml += `<h4 style="margin:0 0 10px 0;">📊 Répartition des choix des participants :</h4>`;
-            
-            data.options.forEach((opt, idx) => {
-                let voteCount = data.stats[idx] || 0;
-                let percent = Math.round((voteCount / totalVotes) * 100);
-                let isCorrect = (idx === data.correctIndex);
-                let color = isCorrect ? '#28a745' : '#dc3545';
-                
-                statsHtml += `
-                    <div style="margin-bottom:10px;">
-                        <div style="display:flex; justify-content:space-between; font-size:14px;">
-                            <span>${opt} ${isCorrect ? '✅' : ''}</span>
-                            <strong>${voteCount} vote(s) (${percent}%)</strong>
-                        </div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" style="background:${color}; width:${percent}%;"></div>
-                        </div>
-                    </div>
-                `;
-            });
-            statsHtml += `</div>`;
-            document.getElementById('stats-container').innerHTML = statsHtml;
-        });
-
-        socket.on('updateLeaderboard', (players) => {
-            players.sort((a, b) => b.score - a.score);
-            latestLeaderboard = players;
-            const lbDiv = document.getElementById('leaderboard');
-            lbDiv.innerHTML = '';
-            players.forEach((p, idx) => {
-                lbDiv.innerHTML += `<li>${idx + 1}. ${p.pseudo} : <strong>${p.score}</strong> pts</li>`;
-            });
-        });
-
-socket.on('gameOver', (players) => {
-            // Arpège de victoire festif
+        // --- 2. Génération du podium de fin ---
+        socket.on('gameOver', (players) => {
+            // Jouer les sons de victoire
             playSound(523.25, 'triangle', 0.1);
             setTimeout(() => playSound(659.25, 'triangle', 0.1), 100);
             setTimeout(() => playSound(783.99, 'triangle', 0.1), 200);
             setTimeout(() => playSound(1046.50, 'triangle', 0.3), 300);
 
-            // Sécurité : on filtre pour ne garder que les joueurs valides
+            // Tri des joueurs
             let validPlayers = players.filter(p => p && p.pseudo);
             validPlayers.sort((a, b) => b.score - a.score);
             
             let podiumHtml = `<div class="podium-container">`;
             
+            // Affichage conditionnel selon le nombre de joueurs
             if (validPlayers.length > 0) {
-                // 2ème place (si un 2ème joueur existe)
+                // 2ème place
                 if (validPlayers.length > 1) {
                     podiumHtml += `
                         <div class="podium-column">
@@ -385,7 +53,7 @@ socket.on('gameOver', (players) => {
                         </div>`;
                 }
                 
-                // 1ère place (toujours affichée s'il y a au moins 1 joueur)
+                // 1ère place
                 podiumHtml += `
                     <div class="podium-column">
                         <div class="podium-box" style="background: linear-gradient(180deg, #ffe066 0%, #f5b041 100%); height: 180px; z-index: 2; box-shadow: 0 -4px 15px rgba(245,176,65,0.4);">
@@ -395,7 +63,7 @@ socket.on('gameOver', (players) => {
                         </div>
                     </div>`;
                     
-                // 3ème place (si un 3ème joueur existe)
+                // 3ème place
                 if (validPlayers.length > 2) {
                     podiumHtml += `
                         <div class="podium-column">
@@ -406,20 +74,17 @@ socket.on('gameOver', (players) => {
                             </div>
                         </div>`;
                 }
-            } else {
-                podiumHtml += `<h3 style="color:#666; margin-top:50px;">Aucun participant n'a joué à cette session.</h3>`;
             }
-            
             podiumHtml += `</div>`;
+
+            // Affichage forcé du conteneur
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.classList.remove('hidden');
+            optionsContainer.style.display = 'block';
+            optionsContainer.innerHTML = podiumHtml;
 
             document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
             document.getElementById('question-media').classList.add('hidden');
-            document.getElementById('options-container').classList.remove('hidden');
-            document.getElementById('options-container').style.display = 'block'; // ou 'flex' selon votre mise en page
-            document.getElementById('options-container').innerHTML = podiumHtml;
             document.getElementById('timer-display').innerHTML = "";
             document.getElementById('stats-container').innerHTML = "";
         });
-    </script>
-</body>
-</html>
