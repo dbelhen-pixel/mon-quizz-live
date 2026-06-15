@@ -20,8 +20,8 @@
         .stat-bar-container { background: #e9ecef; border-radius: 4px; height: 18px; width: 100%; margin-top: 4px; overflow: hidden; }
         .stat-bar { height: 100%; border-radius: 4px; width: 0%; transition: width 0.6s ease-out; }
         
-/* Styles Podium Final */
-        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 250px; margin: 40px auto; gap: 10px; }
+/* Styles Podium Final Corrigés */
+        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 250px; margin: 40px auto; gap: 10px; overflow: hidden; }
         .podium-column { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 120px; }
         .podium-box { 
             width: 100%; 
@@ -33,13 +33,12 @@
             padding-top: 15px; 
             color: white; 
             box-shadow: 0 -4px 10px rgba(0,0,0,0.15); 
-            height: 0; /* Indispensable pour que l'animation parte de zéro */
-            overflow: hidden; 
-            animation: growUp 1s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
+            transform: translateY(100%); /* Les colonnes sont cachées vers le bas au départ */
+            animation: slideUp 0.8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
         }
         .podium-name { font-weight: bold; font-size: 16px; margin-top: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; }
         .podium-score { font-size: 13px; opacity: 0.9; margin-top: 4px; }
-        @keyframes growUp { from { height: 0; } to { height: var(--target-height); } }
+        @keyframes slideUp { to { transform: translateY(0); } } /* Elles remontent à leur position normale */
     </style>
 </head>
 <body>
@@ -367,41 +366,50 @@ socket.on('gameOver', (players) => {
             setTimeout(() => playSound(783.99, 'triangle', 0.1), 200);
             setTimeout(() => playSound(1046.50, 'triangle', 0.3), 300);
 
-            players.sort((a, b) => b.score - a.score);
+            // Sécurité : on filtre pour ne garder que les joueurs valides
+            let validPlayers = players.filter(p => p && p.pseudo);
+            validPlayers.sort((a, b) => b.score - a.score);
             
-            // Génération de l'interface Podium de fin animée avec noms inclus
             let podiumHtml = `<div class="podium-container">`;
             
-            if (players[1]) { // 2ème place
+            if (validPlayers.length > 0) {
+                // 2ème place (si un 2ème joueur existe)
+                if (validPlayers.length > 1) {
+                    podiumHtml += `
+                        <div class="podium-column">
+                            <div class="podium-box" style="background: linear-gradient(180deg, #d7d7d7 0%, #a9a9a9 100%); height: 130px; animation-delay: 0.2s;">
+                                <span style="font-size:24px;">🥈</span>
+                                <span class="podium-name">${validPlayers[1].pseudo}</span>
+                                <span class="podium-score">${validPlayers[1].score} pts</span>
+                            </div>
+                        </div>`;
+                }
+                
+                // 1ère place (toujours affichée s'il y a au moins 1 joueur)
                 podiumHtml += `
                     <div class="podium-column">
-                        <div class="podium-box" style="background: linear-gradient(180deg, #d7d7d7 0%, #a9a9a9 100%); --target-height: 130px; animation-delay: 0.2s;">
-                            <span style="font-size:24px;">🥈</span>
-                            <span class="podium-name">${players[1].pseudo}</span>
-                            <span class="podium-score">${players[1].score} pts</span>
-                        </div>
-                    </div>`;
-            }
-            if (players[0]) { // 1ère place
-                podiumHtml += `
-                    <div class="podium-column">
-                        <div class="podium-box" style="background: linear-gradient(180deg, #ffe066 0%, #f5b041 100%); --target-height: 180px; z-index: 2; box-shadow: 0 -4px 15px rgba(245,176,65,0.4);">
+                        <div class="podium-box" style="background: linear-gradient(180deg, #ffe066 0%, #f5b041 100%); height: 180px; z-index: 2; box-shadow: 0 -4px 15px rgba(245,176,65,0.4);">
                             <span style="font-size:35px;">👑</span>
-                            <span class="podium-name" style="font-size: 18px;">${players[0].pseudo}</span>
-                            <span class="podium-score">${players[0].score} pts</span>
+                            <span class="podium-name" style="font-size: 18px;">${validPlayers[0].pseudo}</span>
+                            <span class="podium-score">${validPlayers[0].score} pts</span>
                         </div>
                     </div>`;
+                    
+                // 3ème place (si un 3ème joueur existe)
+                if (validPlayers.length > 2) {
+                    podiumHtml += `
+                        <div class="podium-column">
+                            <div class="podium-box" style="background: linear-gradient(180deg, #e6a57a 0%, #cd7f32 100%); height: 90px; animation-delay: 0.4s;">
+                                <span style="font-size:20px;">🥉</span>
+                                <span class="podium-name">${validPlayers[2].pseudo}</span>
+                                <span class="podium-score">${validPlayers[2].score} pts</span>
+                            </div>
+                        </div>`;
+                }
+            } else {
+                podiumHtml += `<h3 style="color:#666; margin-top:50px;">Aucun participant n'a joué à cette session.</h3>`;
             }
-            if (players[2]) { // 3ème place
-                podiumHtml += `
-                    <div class="podium-column">
-                        <div class="podium-box" style="background: linear-gradient(180deg, #e6a57a 0%, #cd7f32 100%); --target-height: 90px; animation-delay: 0.4s;">
-                            <span style="font-size:20px;">🥉</span>
-                            <span class="podium-name">${players[2].pseudo}</span>
-                            <span class="podium-score">${players[2].score} pts</span>
-                        </div>
-                    </div>`;
-            }
+            
             podiumHtml += `</div>`;
 
             document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
