@@ -92,17 +92,8 @@ io.on('connection', (socket) => {
     io.emit('answerTallyUpdate', { answered: Object.values(players).filter(p => p.hasAnswered).length, total: Object.keys(players).length });
   });
 
-socket.on('nextQuestion', () => {
+  socket.on('nextQuestion', () => {
     currentQuestionIndex++;
-
-    if (currentQuestionIndex < questions.length) {
-      // ... envoi de la question suivante (newQuestion)
-      startTimer();
-    } else {
-      io.emit('gameOver', Object.values(players));
-      currentQuestionIndex = -1; // Réinitialisation pour permettre de relancer un nouveau quizz
-    }
-});
 
     if (currentQuestionIndex < questions.length) {
       // Configuration du temps personnalisé par question (par défaut 10s si non défini)
@@ -131,6 +122,7 @@ socket.on('nextQuestion', () => {
       startTimer();
     } else {
       io.emit('gameOver', Object.values(players));
+      currentQuestionIndex = -1; // Réinitialisation pour permettre de relancer un nouveau quizz
     }
   });
 
