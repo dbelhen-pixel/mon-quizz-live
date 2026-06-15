@@ -115,9 +115,21 @@
         let latestLeaderboard = [];
 
         // --- GÉNÉRATEUR D'EFFETS SONORES (AudioContext) ---
+// Variable globale pour stocker l'AudioContext
+        let audioCtx = null;
+
         function playSound(frequency, type, duration) {
+            // Création automatique lors du premier appel
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            // Si le contexte est suspendu (bloqué par le navigateur), on le réactive
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 oscillator.type = type;
@@ -128,7 +140,9 @@
                 gainNode.connect(audioCtx.destination);
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + duration);
-            } catch (e) { console.warn("L'Audio n'a pas pu s'initialiser."); }
+            } catch (e) { 
+                console.log("Erreur son ignorée :", e); 
+            }
         }
 
         // --- INTERFACE DE JEU ---
