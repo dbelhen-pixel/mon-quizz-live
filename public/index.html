@@ -3,26 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mon Quizz Live</title>
+    <title>Mon Quizz Live Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
         .hidden { display: none; }
-        .btn { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; }
-        .btn-option { display: block; width: 80%; margin: 10px auto; background: #e9ecef; color: #333; }
+        .btn { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; transition: background 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-option { display: block; width: 80%; margin: 10px auto; background: #e9ecef; color: #333; font-weight: 600; }
         .btn-option:hover { background: #d3d9df; }
-        .admin-controls { background: #ffeeba; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        #timer { font-size: 3em; font-weight: bold; color: #dc3545; }
-        .input-text { width: 90%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .admin-controls { background: #ffeeba; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        #timer { font-size: 3em; font-weight: bold; color: #dc3545; transition: transform 0.1s; }
+        .input-text { width: 95%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        /* Styles pour le graphique des statistiques */
+        .stat-bar-container { background: #e9ecef; border-radius: 4px; height: 18px; width: 100%; margin-top: 4px; overflow: hidden; }
+        .stat-bar { height: 100%; border-radius: 4px; width: 0%; transition: width 0.6s ease-out; }
+        
+        /* Styles Podium Final */
+        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 200px; margin: 40px auto; max-width: 500px; padding-bottom: 10px; }
+        .podium-column { text-align: center; margin: 0 10px; width: 110px; display: flex; flex-direction: column-reverse; }
+        .podium-box { border-radius: 6px 6px 0 0; display: flex; flex-direction: column; justify-content: center; font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.15); animation: growUp 0.8s ease-out forwards; }
+        .podium-name { font-weight: bold; margin-bottom: 5px; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @keyframes growUp { from { height: 0; } to { height: var(--target-height); } }
     </style>
 </head>
 <body>
 
     <div id="login-screen">
-        <img src="accueil.png" alt="Illustration Facilitation" style="max-width: 100%; max-height: 250px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-        
+        <img src="accueil.png" alt="Illustration Facilitation" style="max-width: 100%; max-height: 220px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
         <h1>Bienvenue sur le Quizz</h1>
-        <input type="text" id="pseudo" placeholder="Entrez votre pseudo" style="padding:10px; font-size:16px;">
+        <input type="text" id="pseudo" placeholder="Entrez votre pseudo" style="padding:10px; font-size:16px; border-radius:4px; border:1px solid #ccc;">
         <br><br>
         <button class="btn" onclick="joinGame()">Rejoindre le Quizz</button>
         <br><br><br>
@@ -38,24 +49,30 @@
         
         <div id="questions-list"></div>
 
-        <div id="question-form" class="hidden" style="background: #fff; padding: 20px; border-radius: 8px; text-align: left; max-width: 600px; margin: 20px auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+        <div id="question-form" class="hidden" style="background: #fff; padding: 20px; border-radius: 8px; text-align: left; max-width: 600px; margin: 20px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
             <h3 id="form-title">Ajouter une question</h3>
             <input type="hidden" id="q-index">
             
-            <label><strong>Question :</strong></label><br>
-            <input type="text" id="q-text" class="input-text" placeholder="Ex: Quelle est la capitale de la France ?"><br>
+            <label><strong>Question :</strong></label>
+            <input type="text" id="q-text" class="input-text">
             
-            <label><strong>Options de réponse (séparées par une virgule) :</strong></label><br>
-            <input type="text" id="q-options" class="input-text" placeholder="Ex: Paris, Lyon, Marseille"><br>
+            <label><strong>Options de réponse (séparées par une virgule) :</strong></label>
+            <input type="text" id="q-options" class="input-text" placeholder="Ex: Rouge, Vert, Bleu">
             
-            <label><strong>Numéro de la bonne réponse (0 pour la 1ère, 1 pour la 2ème...) :</strong></label><br>
-            <input type="number" id="q-correct" class="input-text" min="0"><br>
+            <label><strong>Numéro de la bonne réponse (0 pour la 1ère, 1 pour la 2ème...) :</strong></label>
+            <input type="number" id="q-correct" class="input-text" min="0" value="0">
             
-            <label><strong>Commentaire / Explication :</strong></label><br>
-            <textarea id="q-comment" class="input-text" rows="3" placeholder="Ex: Paris est la capitale depuis..."></textarea><br>
+            <label><strong>URL de l'image d'illustration (optionnel) :</strong></label>
+            <input type="text" id="q-image" class="input-text" placeholder="Ex: https://lien.com/image.png">
+
+            <label><strong>Temps de réponse de la question (en secondes) :</strong></label>
+            <input type="number" id="q-timer" class="input-text" min="5" value="10">
             
-            <label><strong>Points attribués :</strong></label><br>
-            <input type="number" id="q-points" class="input-text" value="10"><br>
+            <label><strong>Commentaire / Explication :</strong></label>
+            <textarea id="q-comment" class="input-text" rows="3"></textarea>
+            
+            <label><strong>Points attribués au maximum :</strong></label>
+            <input type="number" id="q-points" class="input-text" value="10">
 
             <div style="text-align: center; margin-top: 15px;">
                 <button class="btn" style="background:#28a745;" onclick="saveQuestion()">Enregistrer</button>
@@ -67,26 +84,54 @@
     <div id="game-screen" class="hidden">
         <div id="host-controls" class="admin-controls hidden">
             <h3>Contrôles Animateur</h3>
-            <h4 id="host-tally" style="color: #007bff; margin-bottom: 15px;">Réponses : 0 / 0</h4>
-            <button class="btn" onclick="socket.emit('nextQuestion')">Lancer / Question Suivante</button>
-            <button class="btn" onclick="socket.emit('pauseTimer')">⏸️ Pause Chrono</button>
-            <button class="btn" onclick="socket.emit('resumeTimer')">▶️ Reprendre Chrono</button>
+            <h4 id="host-tally" style="color: #007bff; margin: 5px 0 15px 0;">Réponses : 0 / 0</h4>
+            <button class="btn" onclick="socket.emit('nextQuestion')">Question Suivante / Lancer</button>
+            <button class="btn" style="background:#ffc107; color:#333;" onclick="socket.emit('pauseTimer')">⏸️ Pause</button>
+            <button class="btn" style="background:#28a745;" onclick="socket.emit('resumeTimer')">▶️ Reprendre</button>
+            <button class="btn" style="background:#17a2b8;" onclick="toggleQRCode()">📱 Afficher QR Code</button>
+            <button class="btn" style="background:#28a745;" onclick="exportCSV()">📊 Exporter les résultats (CSV)</button>
+            
+            <div id="qrcode-area" style="margin-top:15px; display:none;">
+                <img id="qrcode-img" src="" alt="Flashez-moi !" style="border: 4px solid #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            </div>
         </div>
 
         <div id="timer-display">Temps restant : <span id="timer">10</span>s</div>
-        <h2 id="question-text">En attente de l'animateur...</h2>
+        
+        <img id="question-media" src="" class="hidden" style="max-width:90%; max-height:220px; margin: 15px auto; border-radius:8px; display:block; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+        
+        <h2 id="question-text">En attente du lancement par l'animateur...</h2>
         <div id="options-container"></div>
+        <div id="stats-container"></div>
         <hr>
-        <h3>Classement</h3>
+        <h3>Classement en direct</h3>
         <ul id="leaderboard" style="list-style-type: none; padding: 0; font-size: 1.2em;"></ul>
     </div>
 
     <script>
         const socket = io();
         let isHost = false;
-        let localQuestions = []; // Stocke les questions côté client pour l'admin
+        let localQuestions = [];
+        let latestLeaderboard = [];
 
-        // --- NAVIGATION ACCUEIL ---
+        // --- GÉNÉRATEUR D'EFFETS SONORES (AudioContext) ---
+        function playSound(frequency, type, duration) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = type;
+                oscillator.frequency.value = frequency;
+                gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + duration);
+            } catch (e) { console.warn("L'Audio n'a pas pu s'initialiser."); }
+        }
+
+        // --- INTERFACE DE JEU ---
         function joinGame() {
             const pseudo = document.getElementById('pseudo').value;
             if(!pseudo) return alert('Veuillez entrer un pseudo');
@@ -102,7 +147,33 @@
             document.getElementById('host-controls').classList.remove('hidden');
         }
 
-        // --- PARTIE ADMIN ---
+        function toggleQRCode() {
+            const container = document.getElementById('qrcode-area');
+            const img = document.getElementById('qrcode-img');
+            if (container.style.display === 'none') {
+                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href)}`;
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        function exportCSV() {
+            if(latestLeaderboard.length === 0) return alert("Aucune donnée disponible.");
+            let csvContent = "data:text/csv;charset=utf-8,Rang,Pseudo,Score\n";
+            latestLeaderboard.forEach((p, index) => {
+                csvContent += `${index + 1},"${p.pseudo.replace(/"/g, '""')}",${p.score}\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "resultats_quizz.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- GESTION DE L'ADMINISTRATION ---
         function openAdminPanel() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('admin-screen').classList.remove('hidden');
@@ -118,11 +189,10 @@
             localQuestions = questions;
             const listDiv = document.getElementById('questions-list');
             listDiv.innerHTML = '';
-            
             questions.forEach((q, index) => {
                 listDiv.innerHTML += `
                     <div style="background:#e9ecef; margin:10px auto; padding:15px; border-radius:5px; text-align:left; max-width:600px;">
-                        <strong>Question ${index + 1} :</strong> ${q.question}
+                        <strong>Q${index + 1} : ${q.question}</strong> <span style="font-size:12px; color:#555;">⏱️ ${q.timer || 10}s</span>
                         <div style="margin-top: 10px;">
                             <button class="btn" style="font-size:12px; padding:5px 10px;" onclick="openQuestionForm(${index})">✏️ Modifier</button>
                             <button class="btn" style="font-size:12px; padding:5px 10px; background:#dc3545;" onclick="deleteQuestion(${index})">🗑️ Supprimer</button>
@@ -134,59 +204,67 @@
 
         function openQuestionForm(index) {
             document.getElementById('question-form').classList.remove('hidden');
-            
             if (index >= 0) {
-                // Modification
                 document.getElementById('form-title').innerText = `Modifier la question ${index + 1}`;
                 const q = localQuestions[index];
                 document.getElementById('q-index').value = index;
                 document.getElementById('q-text').value = q.question;
                 document.getElementById('q-options').value = q.options.join(', ');
                 document.getElementById('q-correct').value = q.correctIndex;
+                document.getElementById('q-image').value = q.image || "";
+                document.getElementById('q-timer').value = q.timer || 10;
                 document.getElementById('q-comment').value = q.comment || "";
                 document.getElementById('q-points').value = q.points || 10;
             } else {
-                // Création
                 document.getElementById('form-title').innerText = "Nouvelle question";
                 document.getElementById('q-index').value = -1;
                 document.getElementById('q-text').value = "";
                 document.getElementById('q-options').value = "";
                 document.getElementById('q-correct').value = "0";
+                document.getElementById('q-image').value = "";
+                document.getElementById('q-timer').value = "10";
                 document.getElementById('q-comment').value = "";
                 document.getElementById('q-points').value = "10";
             }
         }
 
-        function closeQuestionForm() {
-            document.getElementById('question-form').classList.add('hidden');
-        }
+        function closeQuestionForm() { document.getElementById('question-form').classList.add('hidden'); }
 
         function saveQuestion() {
             const index = parseInt(document.getElementById('q-index').value);
             const optionsArray = document.getElementById('q-options').value.split(',').map(opt => opt.trim());
-            
             const newQuestion = {
                 question: document.getElementById('q-text').value,
                 options: optionsArray,
                 correctIndex: parseInt(document.getElementById('q-correct').value),
+                image: document.getElementById('q-image').value,
+                timer: parseInt(document.getElementById('q-timer').value) || 10,
                 comment: document.getElementById('q-comment').value,
                 points: parseInt(document.getElementById('q-points').value)
             };
-
             socket.emit('saveQuestion', { index: index, question: newQuestion });
             closeQuestionForm();
         }
 
         function deleteQuestion(index) {
-            if (confirm("Êtes-vous sûr de vouloir supprimer cette question ?")) {
-                socket.emit('deleteQuestion', index);
-            }
+            if (confirm("Supprimer définitivement cette question ?")) socket.emit('deleteQuestion', index);
         }
 
-        // --- PARTIE JEU & SOCKETS ---
+        // --- FLUX DE JEU INTERACTIF ---
         socket.on('newQuestion', (data) => {
+            document.getElementById('stats-container').innerHTML = "";
             document.getElementById('question-text').innerText = `Question ${data.questionNumber}/${data.totalQuestions} : ${data.question}`;
             document.getElementById('timer').innerText = data.timeLeft;
+            
+            // Gestion de l'affichage de l'image d'illustration
+            const mediaImg = document.getElementById('question-media');
+            if (data.image && data.image.trim() !== "") {
+                mediaImg.src = data.image;
+                mediaImg.classList.remove('hidden');
+            } else {
+                mediaImg.classList.add('hidden');
+            }
+
             const optionsDiv = document.getElementById('options-container');
             optionsDiv.innerHTML = '';
             
@@ -197,7 +275,8 @@
                 if(!isHost) {
                     btn.onclick = () => {
                         socket.emit('submitAnswer', index);
-                        optionsDiv.innerHTML = '<h3>Réponse enregistrée, attendez...</h3>';
+                        playSound(587.33, 'sine', 0.08); // Note D5 d'appui
+                        optionsDiv.innerHTML = '<h3>👍 Réponse enregistrée ! En attente de la fin du chrono...</h3>';
                     };
                 }
                 optionsDiv.appendChild(btn);
@@ -205,41 +284,113 @@
         });
 
         socket.on('answerTallyUpdate', (data) => {
-            if (isHost) {
-                document.getElementById('host-tally').innerText = `Réponses : ${data.answered} / ${data.total}`;
-            }
+            if (isHost) document.getElementById('host-tally').innerText = `Réponses : ${data.answered} / ${data.total}`;
         });
 
         socket.on('timerUpdate', (timeLeft) => {
             document.getElementById('timer').innerText = timeLeft;
+            if(timeLeft <= 3 && timeLeft > 0) {
+                playSound(329.63, 'sine', 0.1); // Son d'alerte basse tension (E4)
+            } else {
+                playSound(440, 'sine', 0.03); // Tic-tac standard léger
+            }
         });
 
-socket.on('timeUp', (data) => {
+        socket.on('timeUp', (data) => {
+            playSound(220, 'sawtooth', 0.25); // Son indicateur de fin (A3)
             let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
             let messageFin = data.isLastQuestion ? `<h2 style="color:#dc3545; margin-top:20px;">🏁 Le questionnaire est terminé ! 🏁</h2>` : "";
             
             document.getElementById('options-container').innerHTML = `
-                <h3 style="color:green;">Le temps est écoulé ! La bonne réponse était la n°${data.correctIndex + 1} : "${data.correctText}"</h3>
-                <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 5px solid #007bff;">
-                    <strong>💡 À savoir :</strong> ${commentaire}
+                <h3 style="color:green;">Fin du temps ! La bonne réponse était la n°${data.correctIndex + 1} : "${data.correctText}"</h3>
+                <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 5px solid #007bff; text-align:left;">
+                    <strong>💡 Complément :</strong> ${commentaire}
                 </div>
                 ${messageFin}
             `;
+
+            // Rendu graphique des statistiques de réponse (Barres de répartition)
+            let totalVotes = data.stats.reduce((a, b) => a + b, 0) || 1;
+            let statsHtml = `<div style="margin-top:20px; text-align:left; background:#fff; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.05);">`;
+            statsHtml += `<h4 style="margin:0 0 10px 0;">📊 Répartition des choix des participants :</h4>`;
+            
+            data.options.forEach((opt, idx) => {
+                let voteCount = data.stats[idx] || 0;
+                let percent = Math.round((voteCount / totalVotes) * 100);
+                let isCorrect = (idx === data.correctIndex);
+                let color = isCorrect ? '#28a745' : '#dc3545';
+                
+                statsHtml += `
+                    <div style="margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:14px;">
+                            <span>${opt} ${isCorrect ? '✅' : ''}</span>
+                            <strong>${voteCount} vote(s) (${percent}%)</strong>
+                        </div>
+                        <div class="stat-bar-container">
+                            <div class="stat-bar" style="background:${color}; width:${percent}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            statsHtml += `</div>`;
+            document.getElementById('stats-container').innerHTML = statsHtml;
         });
 
         socket.on('updateLeaderboard', (players) => {
             players.sort((a, b) => b.score - a.score);
+            latestLeaderboard = players;
             const lbDiv = document.getElementById('leaderboard');
             lbDiv.innerHTML = '';
-            players.forEach(p => {
-                lbDiv.innerHTML += `<li>${p.pseudo} : <strong>${p.score}</strong> pts</li>`;
+            players.forEach((p, idx) => {
+                lbDiv.innerHTML += `<li>${idx + 1}. ${p.pseudo} : <strong>${p.score}</strong> pts</li>`;
             });
         });
 
         socket.on('gameOver', (players) => {
+            // Arpège de victoire festif
+            playSound(523.25, 'triangle', 0.1);
+            setTimeout(() => playSound(659.25, 'triangle', 0.1), 100);
+            setTimeout(() => playSound(783.99, 'triangle', 0.1), 200);
+            setTimeout(() => playSound(1046.50, 'triangle', 0.3), 300);
+
+            players.sort((a, b) => b.score - a.score);
+            
+            // Génération de l'interface Podium de fin animée
+            let podiumHtml = `<div class="podium-container">`;
+            if (players[1]) { // 2ème place
+                podiumHtml += `
+                    <div class="podium-column">
+                        <div class="podium-box" style="background:#b4b4b4; height:75px; --target-height:75px;">
+                            <span style="font-size:20px;">2</span><span style="font-size:11px;">${players[1].score} pts</span>
+                        </div>
+                        <div class="podium-name">${players[1].pseudo}</div>
+                    </div>`;
+            }
+            if (players[0]) { // 1ère place
+                podiumHtml += `
+                    <div class="podium-column">
+                        <div class="podium-box" style="background:#ffc107; height:120px; --target-height:120px;">
+                            <span style="font-size:28px;">👑</span><span style="font-size:12px;">${players[0].score} pts</span>
+                        </div>
+                        <div class="podium-name" style="color:#ffc107; font-weight:bold;">${players[0].pseudo}</div>
+                    </div>`;
+            }
+            if (players[2]) { // 3ème place
+                podiumHtml += `
+                    <div class="podium-column">
+                        <div class="podium-box" style="background:#cd7f32; height:50px; --target-height:50px;">
+                            <span style="font-size:16px;">3</span><span style="font-size:10px;">${players[2].score} pts</span>
+                        </div>
+                        <div class="podium-name">${players[2].pseudo}</div>
+                    </div>`;
+            }
+            podiumHtml += `</div>`;
+
             document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
-            document.getElementById('options-container').innerHTML = "";
+            document.getElementById('question-media').classList.add('hidden');
+            document.getElementById('options-container').innerHTML = podiumHtml;
             document.getElementById('timer-display').innerHTML = "";
+            document.getElementById('stats-container').innerHTML = "";
         });
     </script>
 </body>
