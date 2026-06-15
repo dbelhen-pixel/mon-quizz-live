@@ -150,6 +150,25 @@ io.on('connection', (socket) => {
   socket.on('pauseTimer', () => { isPaused = true; });
   socket.on('resumeTimer', () => { isPaused = false; });
 
+  // Réinitialisation complète du quizz à tout moment (remise à zéro des scores et retour à l'écran d'attente)
+  socket.on('resetQuiz', () => {
+    clearInterval(timerInterval);
+    currentQuestionIndex = -1;
+    isPaused = false;
+    currentAnswers = {};
+    timeLeft = 10;
+    totalTimeForQuestion = 10;
+
+    for (let id in players) {
+      players[id].score = 0;
+      players[id].hasAnswered = false;
+    }
+
+    io.emit('updateLeaderboard', Object.values(players));
+    io.emit('answerTallyUpdate', { answered: 0, total: Object.keys(players).length });
+    io.emit('quizReset');
+  });
+
   // --- INTERFACE ADMIN ---
   socket.on('getQuestions', () => { socket.emit('questionsList', questions); });
 
