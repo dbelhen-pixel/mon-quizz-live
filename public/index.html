@@ -1,90 +1,84 @@
-// --- 1. Gestion du son sécurisée ---
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Quizz Live</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
+    
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #f4f6f8; padding: 20px; }
+        .hidden { display: none !important; }
+        
+        /* Styles Podium Final */
+        .podium-container { display: flex; justify-content: center; align-items: flex-end; height: 250px; margin: 40px auto; gap: 10px; overflow: hidden; }
+        .podium-column { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 120px; }
+        .podium-box { 
+            width: 100%; border-radius: 8px 8px 0 0; display: flex; flex-direction: column; 
+            justify-content: flex-start; align-items: center; padding-top: 15px; color: white; 
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.15); transform: translateY(100%);
+            animation: slideUp 0.8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
+        }
+        .podium-name { font-weight: bold; font-size: 16px; margin-top: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+        .podium-score { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+        @keyframes slideUp { to { transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <h1 id="question-text">Attente des joueurs...</h1>
+    <div id="question-media"></div>
+    <div id="options-container"></div>
+    <div id="timer-display"></div>
+    <div id="stats-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
         let audioCtx = null;
 
+        // Fonction son corrigée
         function playSound(frequency, type, duration) {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             try {
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.type = type;
-                oscillator.frequency.value = frequency;
-                gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + duration);
-            } catch (e) {
-                console.warn("Audio non disponible, le jeu continue :", e);
-            }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            } catch (e) { console.warn("Audio ignoré", e); }
         }
 
-        // --- 2. Génération du podium de fin ---
+        // Gestion de la fin de partie
         socket.on('gameOver', (players) => {
-            // Jouer les sons de victoire
             playSound(523.25, 'triangle', 0.1);
             setTimeout(() => playSound(659.25, 'triangle', 0.1), 100);
             setTimeout(() => playSound(783.99, 'triangle', 0.1), 200);
             setTimeout(() => playSound(1046.50, 'triangle', 0.3), 300);
 
-            // Tri des joueurs
-            let validPlayers = players.filter(p => p && p.pseudo);
-            validPlayers.sort((a, b) => b.score - a.score);
-            
+            let validPlayers = players.filter(p => p && p.pseudo).sort((a, b) => b.score - a.score);
             let podiumHtml = `<div class="podium-container">`;
             
-            // Affichage conditionnel selon le nombre de joueurs
             if (validPlayers.length > 0) {
-                // 2ème place
                 if (validPlayers.length > 1) {
-                    podiumHtml += `
-                        <div class="podium-column">
-                            <div class="podium-box" style="background: linear-gradient(180deg, #d7d7d7 0%, #a9a9a9 100%); height: 130px; animation-delay: 0.2s;">
-                                <span style="font-size:24px;">🥈</span>
-                                <span class="podium-name">${validPlayers[1].pseudo}</span>
-                                <span class="podium-score">${validPlayers[1].score} pts</span>
-                            </div>
-                        </div>`;
+                    podiumHtml += `<div class="podium-column"><div class="podium-box" style="background: linear-gradient(180deg, #d7d7d7 0%, #a9a9a9 100%); height: 130px; animation-delay: 0.2s;"><span style="font-size:24px;">🥈</span><span class="podium-name">${validPlayers[1].pseudo}</span><span class="podium-score">${validPlayers[1].score} pts</span></div></div>`;
                 }
-                
-                // 1ère place
-                podiumHtml += `
-                    <div class="podium-column">
-                        <div class="podium-box" style="background: linear-gradient(180deg, #ffe066 0%, #f5b041 100%); height: 180px; z-index: 2; box-shadow: 0 -4px 15px rgba(245,176,65,0.4);">
-                            <span style="font-size:35px;">👑</span>
-                            <span class="podium-name" style="font-size: 18px;">${validPlayers[0].pseudo}</span>
-                            <span class="podium-score">${validPlayers[0].score} pts</span>
-                        </div>
-                    </div>`;
-                    
-                // 3ème place
+                podiumHtml += `<div class="podium-column"><div class="podium-box" style="background: linear-gradient(180deg, #ffe066 0%, #f5b041 100%); height: 180px; z-index: 2; box-shadow: 0 -4px 15px rgba(245,176,65,0.4);"><span style="font-size:35px;">👑</span><span class="podium-name" style="font-size: 18px;">${validPlayers[0].pseudo}</span><span class="podium-score">${validPlayers[0].score} pts</span></div></div>`;
                 if (validPlayers.length > 2) {
-                    podiumHtml += `
-                        <div class="podium-column">
-                            <div class="podium-box" style="background: linear-gradient(180deg, #e6a57a 0%, #cd7f32 100%); height: 90px; animation-delay: 0.4s;">
-                                <span style="font-size:20px;">🥉</span>
-                                <span class="podium-name">${validPlayers[2].pseudo}</span>
-                                <span class="podium-score">${validPlayers[2].score} pts</span>
-                            </div>
-                        </div>`;
+                    podiumHtml += `<div class="podium-column"><div class="podium-box" style="background: linear-gradient(180deg, #e6a57a 0%, #cd7f32 100%); height: 90px; animation-delay: 0.4s;"><span style="font-size:20px;">🥉</span><span class="podium-name">${validPlayers[2].pseudo}</span><span class="podium-score">${validPlayers[2].score} pts</span></div></div>`;
                 }
             }
             podiumHtml += `</div>`;
 
-            // Affichage forcé du conteneur
-            const optionsContainer = document.getElementById('options-container');
-            optionsContainer.classList.remove('hidden');
-            optionsContainer.style.display = 'block';
-            optionsContainer.innerHTML = podiumHtml;
-
+            const container = document.getElementById('options-container');
+            container.classList.remove('hidden');
+            container.style.display = 'block';
+            container.innerHTML = podiumHtml;
             document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
-            document.getElementById('question-media').classList.add('hidden');
-            document.getElementById('timer-display').innerHTML = "";
-            document.getElementById('stats-container').innerHTML = "";
         });
+    </script>
+</body>
+</html>
