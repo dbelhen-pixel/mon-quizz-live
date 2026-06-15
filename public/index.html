@@ -414,6 +414,8 @@ socket.on('gameOver', (players) => {
 
             document.getElementById('question-text').innerText = "🎉 Quizz Terminé ! 🎉";
             document.getElementById('question-media').classList.add('hidden');
+            document.getElementById('options-container').classList.remove('hidden');
+            document.getElementById('options-container').style.display = 'block'; // ou 'flex' selon votre mise en page
             document.getElementById('options-container').innerHTML = podiumHtml;
             document.getElementById('timer-display').innerHTML = "";
             document.getElementById('stats-container').innerHTML = "";
