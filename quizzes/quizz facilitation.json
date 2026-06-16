@@ -15,16 +15,19 @@
     "correctIndex": 1
   },
   {
-    "question": "Combien font 8 x 7 ?",
+    "type": "single",
+    "question": "Quelles sont les 4 étapes successives d'un projet de facilitation ?",
+    "image": "",
+    "timer": 15,
+    "comment": "Ce sont les quatre phases clés identifiées.",
     "options": [
-      "54",
-      "56",
-      "64",
-      "62"
+      "Diagnostic-Formation-Animation-Bilan",
+      "Qualification-Conception-Animation-Suivi",
+      "Préparation-Réunion-Restitution-Reporting",
+      "Analyse-Stratégie-Action-Feedback"
     ],
-    "correctIndex": 1,
-    "points": 150,
-    "comment": "Astuce : 5-6-7-8, donc 56 = 7 x 8 !"
+    "points": 100,
+    "correctIndex": 1
   },
   {
     "type": "open",
