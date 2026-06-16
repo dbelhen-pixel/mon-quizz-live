@@ -22,5 +22,12 @@
     "correctIndex": 1,
     "points": 150,
     "comment": "Astuce : 5-6-7-8, donc 56 = 7 x 8 !"
+  },
+  {
+    "type": "open",
+    "question": "A quoi pensez vous si on vous dit cadre de collaboration",
+    "image": "",
+    "timer": 20,
+    "comment": ""
   }
 ]
