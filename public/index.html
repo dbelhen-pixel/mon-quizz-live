@@ -26,6 +26,19 @@
         .podium-box { border-radius: 6px 6px 0 0; display: flex; flex-direction: column; justify-content: center; font-weight: bold; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.15); animation: growUp 0.8s ease-out forwards; }
         .podium-name { font-weight: bold; margin-bottom: 5px; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         @keyframes growUp { from { height: 0; } to { height: var(--target-height); } }
+
+        /* Styles Bibliothèque de Quizz */
+        .quiz-item { background: #fff; border-radius: 6px; padding: 12px 15px; margin: 8px auto; max-width: 700px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; text-align: left; }
+        .quiz-item.quiz-active { border: 2px solid #28a745; background: #eafbef; }
+        .quiz-name { font-weight: 600; flex: 1 1 200px; }
+        .quiz-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+        /* Styles Question à choix multiple */
+        .multi-choice-checkbox { width: 18px; height: 18px; vertical-align: middle; }
+
+        /* Styles Nuage de mots */
+        .wordcloud-container { background: #fff; border-radius: 8px; padding: 20px; margin: 15px auto; min-height: 100px; max-width: 700px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
+        .wordcloud-word { font-weight: 700; line-height: 1.2; transition: font-size 0.4s ease, color 0.4s ease; }
     </style>
 </head>
 <body>
@@ -44,6 +57,14 @@
     <div id="admin-screen" class="hidden">
         <h2>Gestion des Questions</h2>
         <button class="btn" style="background:#6c757d;" onclick="returnToLogin()">Retour à l'accueil</button>
+
+        <h3>📚 Bibliothèque de Quizz</h3>
+        <div id="quiz-library"></div>
+        <button class="btn" style="background:#28a745;" onclick="createQuizPrompt()">+ Nouveau Quizz</button>
+
+        <hr>
+
+        <h3>📝 Questions du quizz : <span id="editing-quiz-name">-</span></h3>
         <button class="btn" style="background:#28a745;" onclick="openQuestionForm(-1)">+ Nouvelle Question</button>
         <hr>
         
@@ -52,15 +73,31 @@
         <div id="question-form" class="hidden" style="background: #fff; padding: 20px; border-radius: 8px; text-align: left; max-width: 600px; margin: 20px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
             <h3 id="form-title">Ajouter une question</h3>
             <input type="hidden" id="q-index">
+
+            <label><strong>Type de question :</strong></label>
+            <select id="q-type" class="input-text" onchange="updateQuestionFormFields()">
+                <option value="single">🔘 Choix unique (1 bonne réponse)</option>
+                <option value="multiple">☑️ Choix multiple (plusieurs bonnes réponses)</option>
+                <option value="open">☁️ Question ouverte (nuage de mots)</option>
+            </select>
             
             <label><strong>Question :</strong></label>
             <input type="text" id="q-text" class="input-text">
             
-            <label><strong>Options de réponse (séparées par une virgule) :</strong></label>
-            <input type="text" id="q-options" class="input-text" placeholder="Ex: Rouge, Vert, Bleu">
-            
-            <label><strong>Numéro de la bonne réponse (0 pour la 1ère, 1 pour la 2ème...) :</strong></label>
-            <input type="number" id="q-correct" class="input-text" min="0" value="0">
+            <div id="q-options-section">
+                <label><strong>Options de réponse (séparées par une virgule) :</strong></label>
+                <input type="text" id="q-options" class="input-text" placeholder="Ex: Rouge, Vert, Bleu">
+
+                <div id="q-single-correct-section">
+                    <label><strong>Numéro de la bonne réponse (0 pour la 1ère, 1 pour la 2ème...) :</strong></label>
+                    <input type="number" id="q-correct" class="input-text" min="0" value="0">
+                </div>
+
+                <div id="q-multiple-correct-section" class="hidden">
+                    <label><strong>Numéros des bonnes réponses, séparés par une virgule (ex: 0,2) :</strong></label>
+                    <input type="text" id="q-correct-multiple" class="input-text" placeholder="Ex: 0,2">
+                </div>
+            </div>
             
             <label><strong>URL de l'image d'illustration (optionnel) :</strong></label>
             <input type="text" id="q-image" class="input-text" placeholder="Ex: https://lien.com/image.png">
@@ -71,8 +108,10 @@
             <label><strong>Commentaire / Explication :</strong></label>
             <textarea id="q-comment" class="input-text" rows="3"></textarea>
             
-            <label><strong>Points attribués au maximum :</strong></label>
-            <input type="number" id="q-points" class="input-text" value="10">
+            <div id="q-points-section">
+                <label><strong>Points attribués au maximum :</strong></label>
+                <input type="number" id="q-points" class="input-text" value="10">
+            </div>
 
             <div style="text-align: center; margin-top: 15px;">
                 <button class="btn" style="background:#28a745;" onclick="saveQuestion()">Enregistrer</button>
@@ -84,6 +123,7 @@
     <div id="game-screen" class="hidden">
         <div id="host-controls" class="admin-controls hidden">
             <h3>Contrôles Animateur</h3>
+            <p style="margin:0 0 10px 0;">📚 Quizz actif : <strong id="host-active-quiz">-</strong></p>
             <h4 id="host-tally" style="color: #007bff; margin: 5px 0 15px 0;">Réponses : 0 / 0</h4>
             <button class="btn" onclick="socket.emit('nextQuestion')">Question Suivante / Lancer</button>
             <button class="btn" style="background:#ffc107; color:#333;" onclick="socket.emit('pauseTimer')">⏸️ Pause</button>
@@ -114,6 +154,38 @@
         let isHost = false;
         let localQuestions = [];
         let latestLeaderboard = [];
+        let availableQuizzes = [];
+        let activeQuizName = null;
+        let editingQuizName = null;
+        let currentQuestionType = 'single';
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        // --- NUAGE DE MOTS ---
+        function renderWordCloud(containerEl, words) {
+            containerEl.innerHTML = '';
+            if (!words || words.length === 0) {
+                containerEl.innerHTML = '<p style="color:#888; margin:0;">En attente des premières réponses...</p>';
+                return;
+            }
+            const sorted = [...words].sort((a, b) => b.count - a.count);
+            const counts = sorted.map(w => w.count);
+            const max = Math.max(...counts);
+            const min = Math.min(...counts);
+            sorted.forEach((w, i) => {
+                const span = document.createElement('span');
+                span.className = 'wordcloud-word';
+                const ratio = (max === min) ? 1 : (w.count - min) / (max - min);
+                const size = 14 + ratio * 38; // de 14px à 52px
+                span.style.fontSize = size + 'px';
+                span.style.color = `hsl(${(i * 47) % 360}, 60%, 45%)`;
+                span.textContent = w.text;
+                span.title = `${w.count} fois`;
+                containerEl.appendChild(span);
+            });
+        }
 
         // --- GÉNÉRATEUR D'EFFETS SONORES (AudioContext) ---
         function playSound(frequency, type, duration) {
@@ -184,7 +256,8 @@
         function openAdminPanel() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('admin-screen').classList.remove('hidden');
-            socket.emit('getQuestions');
+            socket.emit('getQuizList');
+            socket.emit('getQuestions', editingQuizName);
         }
 
         function returnToLogin() {
@@ -192,14 +265,106 @@
             document.getElementById('login-screen').classList.remove('hidden');
         }
 
-        socket.on('questionsList', (questions) => {
-            localQuestions = questions;
+        // --- BIBLIOTHÈQUE DE QUIZZ ---
+        socket.on('quizList', (data) => {
+            availableQuizzes = data.quizzes || [];
+            activeQuizName = data.active;
+            if (!editingQuizName) editingQuizName = activeQuizName;
+            renderQuizLibrary();
+            document.getElementById('host-active-quiz').innerText = activeQuizName || '-';
+        });
+
+        function renderQuizLibrary() {
+            const container = document.getElementById('quiz-library');
+            if (!container) return;
+            container.innerHTML = '';
+
+            availableQuizzes.forEach(name => {
+                const isActive = (name === activeQuizName);
+                const item = document.createElement('div');
+                item.className = 'quiz-item' + (isActive ? ' quiz-active' : '');
+
+                const label = document.createElement('span');
+                label.className = 'quiz-name';
+                label.textContent = name + (isActive ? ' 🟢 (Actif)' : '');
+                item.appendChild(label);
+
+                const actions = document.createElement('div');
+                actions.className = 'quiz-actions';
+
+                const mk = (text, color, handler) => {
+                    const b = document.createElement('button');
+                    b.className = 'btn';
+                    b.style.background = color;
+                    b.style.fontSize = '12px';
+                    b.style.padding = '6px 10px';
+                    b.style.margin = '2px';
+                    b.textContent = text;
+                    b.onclick = handler;
+                    return b;
+                };
+
+                actions.appendChild(mk('▶️ Activer', '#007bff', () => selectQuizForGame(name)));
+                actions.appendChild(mk('✏️ Éditer', '#6c757d', () => editQuiz(name)));
+                actions.appendChild(mk('📄 Dupliquer', '#17a2b8', () => duplicateQuizPrompt(name)));
+                actions.appendChild(mk('🏷️ Renommer', '#ffc107', () => renameQuizPrompt(name)));
+                actions.appendChild(mk('🗑️ Supprimer', '#dc3545', () => deleteQuizPrompt(name)));
+
+                item.appendChild(actions);
+                container.appendChild(item);
+            });
+        }
+
+        function createQuizPrompt() {
+            const name = prompt("Nom du nouveau quizz :");
+            if (name && name.trim()) socket.emit('createQuiz', name.trim());
+        }
+
+        function duplicateQuizPrompt(source) {
+            const name = prompt(`Dupliquer "${source}" sous quel nom ?`, source + ' (copie)');
+            if (name && name.trim()) socket.emit('duplicateQuiz', { source: source, newName: name.trim() });
+        }
+
+        function renameQuizPrompt(oldName) {
+            const name = prompt(`Nouveau nom pour "${oldName}" :`, oldName);
+            if (name && name.trim() && name.trim() !== oldName) socket.emit('renameQuiz', { oldName: oldName, newName: name.trim() });
+        }
+
+        function deleteQuizPrompt(name) {
+            if (availableQuizzes.length <= 1) return alert("Impossible de supprimer le dernier quizz restant.");
+            if (confirm(`Supprimer définitivement le quizz "${name}" ? Cette action est irréversible.`)) {
+                socket.emit('deleteQuiz', name);
+                if (editingQuizName === name) editingQuizName = null;
+            }
+        }
+
+        function selectQuizForGame(name) {
+            if (name === activeQuizName) return;
+            if (confirm(`Activer "${name}" comme quizz en direct ? La partie en cours sera réinitialisée (scores remis à zéro).`)) {
+                socket.emit('selectQuizForGame', name);
+            }
+        }
+
+        function editQuiz(name) {
+            editingQuizName = name;
+            socket.emit('getQuestions', name);
+        }
+
+        // --- GESTION DES QUESTIONS DU QUIZZ EN COURS D'ÉDITION ---
+        socket.on('questionsList', (data) => {
+            editingQuizName = data.quizName;
+            localQuestions = data.questions || [];
+            document.getElementById('editing-quiz-name').innerText = editingQuizName || '-';
+
+            const typeLabels = { single: '🔘 Choix unique', multiple: '☑️ Choix multiple', open: '☁️ Question ouverte' };
             const listDiv = document.getElementById('questions-list');
             listDiv.innerHTML = '';
-            questions.forEach((q, index) => {
+            localQuestions.forEach((q, index) => {
+                const type = q.type || 'single';
                 listDiv.innerHTML += `
                     <div style="background:#e9ecef; margin:10px auto; padding:15px; border-radius:5px; text-align:left; max-width:600px;">
-                        <strong>Q${index + 1} : ${q.question}</strong> <span style="font-size:12px; color:#555;">⏱️ ${q.timer || 10}s</span>
+                        <strong>Q${index + 1} : ${escapeHtml(q.question)}</strong>
+                        <div style="font-size:12px; color:#555; margin-top:4px;">⏱️ ${q.timer || 10}s &nbsp;|&nbsp; ${typeLabels[type] || typeLabels.single}</div>
                         <div style="margin-top: 10px;">
                             <button class="btn" style="font-size:12px; padding:5px 10px;" onclick="openQuestionForm(${index})">✏️ Modifier</button>
                             <button class="btn" style="font-size:12px; padding:5px 10px; background:#dc3545;" onclick="deleteQuestion(${index})">🗑️ Supprimer</button>
@@ -209,15 +374,40 @@
             });
         });
 
+        function updateQuestionFormFields() {
+            const type = document.getElementById('q-type').value;
+            const optionsSection = document.getElementById('q-options-section');
+            const singleCorrect = document.getElementById('q-single-correct-section');
+            const multipleCorrect = document.getElementById('q-multiple-correct-section');
+            const pointsSection = document.getElementById('q-points-section');
+
+            if (type === 'open') {
+                optionsSection.classList.add('hidden');
+                pointsSection.classList.add('hidden');
+            } else {
+                optionsSection.classList.remove('hidden');
+                pointsSection.classList.remove('hidden');
+                if (type === 'multiple') {
+                    singleCorrect.classList.add('hidden');
+                    multipleCorrect.classList.remove('hidden');
+                } else {
+                    singleCorrect.classList.remove('hidden');
+                    multipleCorrect.classList.add('hidden');
+                }
+            }
+        }
+
         function openQuestionForm(index) {
             document.getElementById('question-form').classList.remove('hidden');
             if (index >= 0) {
                 document.getElementById('form-title').innerText = `Modifier la question ${index + 1}`;
                 const q = localQuestions[index];
                 document.getElementById('q-index').value = index;
+                document.getElementById('q-type').value = q.type || 'single';
                 document.getElementById('q-text').value = q.question;
-                document.getElementById('q-options').value = q.options.join(', ');
-                document.getElementById('q-correct').value = q.correctIndex;
+                document.getElementById('q-options').value = (q.options || []).join(', ');
+                document.getElementById('q-correct').value = (q.correctIndex !== undefined && q.correctIndex !== null) ? q.correctIndex : 0;
+                document.getElementById('q-correct-multiple').value = (q.correctIndexes || []).join(', ');
                 document.getElementById('q-image').value = q.image || "";
                 document.getElementById('q-timer').value = q.timer || 10;
                 document.getElementById('q-comment').value = q.comment || "";
@@ -225,41 +415,66 @@
             } else {
                 document.getElementById('form-title').innerText = "Nouvelle question";
                 document.getElementById('q-index').value = -1;
+                document.getElementById('q-type').value = "single";
                 document.getElementById('q-text').value = "";
                 document.getElementById('q-options').value = "";
                 document.getElementById('q-correct').value = "0";
+                document.getElementById('q-correct-multiple').value = "";
                 document.getElementById('q-image').value = "";
                 document.getElementById('q-timer').value = "10";
                 document.getElementById('q-comment').value = "";
                 document.getElementById('q-points').value = "10";
             }
+            updateQuestionFormFields();
         }
 
         function closeQuestionForm() { document.getElementById('question-form').classList.add('hidden'); }
 
         function saveQuestion() {
             const index = parseInt(document.getElementById('q-index').value);
-            const optionsArray = document.getElementById('q-options').value.split(',').map(opt => opt.trim());
+            const type = document.getElementById('q-type').value;
+            const questionText = document.getElementById('q-text').value.trim();
+            if (!questionText) return alert("La question ne peut pas être vide.");
+
             const newQuestion = {
-                question: document.getElementById('q-text').value,
-                options: optionsArray,
-                correctIndex: parseInt(document.getElementById('q-correct').value),
+                type: type,
+                question: questionText,
                 image: document.getElementById('q-image').value,
                 timer: parseInt(document.getElementById('q-timer').value) || 10,
-                comment: document.getElementById('q-comment').value,
-                points: parseInt(document.getElementById('q-points').value)
+                comment: document.getElementById('q-comment').value
             };
-            socket.emit('saveQuestion', { index: index, question: newQuestion });
+
+            if (type !== 'open') {
+                const optionsArray = document.getElementById('q-options').value.split(',').map(opt => opt.trim()).filter(o => o !== '');
+                if (optionsArray.length < 2) return alert("Il faut au moins 2 options de réponse.");
+                newQuestion.options = optionsArray;
+                newQuestion.points = parseInt(document.getElementById('q-points').value) || 10;
+
+                if (type === 'multiple') {
+                    const correctIndexes = document.getElementById('q-correct-multiple').value
+                        .split(',').map(s => parseInt(s.trim()))
+                        .filter(n => !isNaN(n) && n >= 0 && n < optionsArray.length);
+                    if (correctIndexes.length === 0) return alert("Indique au moins une bonne réponse (ex: 0,2).");
+                    newQuestion.correctIndexes = [...new Set(correctIndexes)].sort((a, b) => a - b);
+                } else {
+                    const correctIndex = parseInt(document.getElementById('q-correct').value);
+                    if (isNaN(correctIndex) || correctIndex < 0 || correctIndex >= optionsArray.length) return alert("Le numéro de la bonne réponse est invalide.");
+                    newQuestion.correctIndex = correctIndex;
+                }
+            }
+
+            socket.emit('saveQuestion', { quizName: editingQuizName, index: index, question: newQuestion });
             closeQuestionForm();
         }
 
         function deleteQuestion(index) {
-            if (confirm("Supprimer définitivement cette question ?")) socket.emit('deleteQuestion', index);
+            if (confirm("Supprimer définitivement cette question ?")) socket.emit('deleteQuestion', { quizName: editingQuizName, index: index });
         }
 
         // --- FLUX DE JEU INTERACTIF ---
         socket.on('newQuestion', (data) => {
             document.getElementById('stats-container').innerHTML = "";
+            currentQuestionType = data.type || 'single';
             document.getElementById('question-text').innerText = `Question ${data.questionNumber}/${data.totalQuestions} : ${data.question}`;
             document.getElementById('timer').innerText = data.timeLeft;
             
@@ -274,20 +489,142 @@
 
             const optionsDiv = document.getElementById('options-container');
             optionsDiv.innerHTML = '';
-            
-            data.options.forEach((opt, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-option';
-                btn.innerText = opt;
-                if(!isHost) {
-                    btn.onclick = () => {
-                        socket.emit('submitAnswer', index);
-                        playSound(587.33, 'sine', 0.08); // Note D5 d'appui
+
+            if (currentQuestionType === 'multiple') {
+                // --- QUESTION À CHOIX MULTIPLE (cases à cocher + bouton Valider) ---
+                if (isHost) {
+                    data.options.forEach((opt) => {
+                        const div = document.createElement('div');
+                        div.className = 'btn btn-option';
+                        div.style.textAlign = 'left';
+                        div.style.cursor = 'default';
+                        div.innerText = '☐ ' + opt;
+                        optionsDiv.appendChild(div);
+                    });
+                    const info = document.createElement('p');
+                    info.style.color = '#555';
+                    info.innerText = "☑️ Question à choix multiple : les participants doivent cocher TOUTES les bonnes réponses (et aucune autre) pour marquer des points.";
+                    optionsDiv.appendChild(info);
+                } else {
+                    data.options.forEach((opt, index) => {
+                        const label = document.createElement('label');
+                        label.className = 'btn btn-option';
+                        label.style.textAlign = 'left';
+                        label.style.cursor = 'pointer';
+                        label.style.display = 'flex';
+                        label.style.alignItems = 'center';
+                        label.style.gap = '10px';
+
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.value = index;
+                        checkbox.className = 'multi-choice-checkbox';
+
+                        label.appendChild(checkbox);
+                        label.appendChild(document.createTextNode(opt));
+                        optionsDiv.appendChild(label);
+                    });
+
+                    const validateBtn = document.createElement('button');
+                    validateBtn.className = 'btn';
+                    validateBtn.style.background = '#28a745';
+                    validateBtn.innerText = '✅ Valider ma réponse';
+                    validateBtn.onclick = () => {
+                        const checked = Array.from(document.querySelectorAll('.multi-choice-checkbox:checked')).map(c => parseInt(c.value));
+                        if (checked.length === 0) return alert("Sélectionne au moins une réponse avant de valider.");
+                        socket.emit('submitAnswer', checked);
+                        playSound(587.33, 'sine', 0.08);
                         optionsDiv.innerHTML = '<h3>👍 Réponse enregistrée ! En attente de la fin du chrono...</h3>';
                     };
+                    optionsDiv.appendChild(validateBtn);
                 }
-                optionsDiv.appendChild(btn);
-            });
+            } else if (currentQuestionType === 'open') {
+                // --- QUESTION OUVERTE (nuage de mots) ---
+                if (isHost) {
+                    const info = document.createElement('p');
+                    info.style.color = '#555';
+                    info.innerHTML = '☁️ Les participants tapent un mot ou une idée courte. Le nuage de mots se construit en direct ci-dessous.';
+                    optionsDiv.appendChild(info);
+                } else {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = 'open-answer-input';
+                    input.placeholder = 'Tape ton mot ou ton idée...';
+                    input.className = 'input-text';
+                    input.style.maxWidth = '400px';
+                    input.style.margin = '10px auto';
+                    input.style.display = 'block';
+                    input.maxLength = 40;
+
+                    const sendBtn = document.createElement('button');
+                    sendBtn.className = 'btn';
+                    sendBtn.style.background = '#28a745';
+                    sendBtn.innerText = '📨 Envoyer';
+
+                    const sendFn = () => {
+                        const text = input.value.trim();
+                        if (!text) return alert("Écris quelque chose avant d'envoyer !");
+                        socket.emit('submitAnswer', text);
+                        playSound(587.33, 'sine', 0.08);
+                        optionsDiv.querySelector('#open-answer-input').disabled = true;
+                        sendBtn.disabled = true;
+                        sendBtn.innerText = '✅ Réponse envoyée !';
+                    };
+                    sendBtn.onclick = sendFn;
+                    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendFn(); });
+
+                    optionsDiv.appendChild(input);
+                    optionsDiv.appendChild(sendBtn);
+                }
+
+                // Nuage de mots en direct, visible par tous
+                const cloudDiv = document.createElement('div');
+                cloudDiv.id = 'wordcloud-live';
+                cloudDiv.className = 'wordcloud-container';
+                cloudDiv.innerHTML = '<p style="color:#888; margin:0;">En attente des premières réponses...</p>';
+                optionsDiv.appendChild(cloudDiv);
+
+                if (isHost) {
+                    const listDiv = document.createElement('div');
+                    listDiv.id = 'wordcloud-host-list';
+                    listDiv.style.textAlign = 'left';
+                    listDiv.style.marginTop = '15px';
+                    optionsDiv.appendChild(listDiv);
+                }
+            } else {
+                // --- QUESTION À CHOIX UNIQUE (comportement d'origine) ---
+                data.options.forEach((opt, index) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-option';
+                    btn.innerText = opt;
+                    if(!isHost) {
+                        btn.onclick = () => {
+                            socket.emit('submitAnswer', index);
+                            playSound(587.33, 'sine', 0.08); // Note D5 d'appui
+                            optionsDiv.innerHTML = '<h3>👍 Réponse enregistrée ! En attente de la fin du chrono...</h3>';
+                        };
+                    }
+                    optionsDiv.appendChild(btn);
+                });
+            }
+        });
+
+        // Mise à jour en direct du nuage de mots (questions ouvertes)
+        socket.on('wordCloudUpdate', (data) => {
+            const cloudDiv = document.getElementById('wordcloud-live');
+            if (cloudDiv) renderWordCloud(cloudDiv, data.words);
+
+            if (isHost) {
+                const listDiv = document.getElementById('wordcloud-host-list');
+                if (listDiv) {
+                    let html = '<h4 style="margin:0 0 8px 0;">📋 Réponses reçues :</h4><ul style="list-style:none; padding:0; margin:0;">';
+                    data.responses.forEach(r => {
+                        html += `<li>${escapeHtml(r.pseudo)} : <strong>${escapeHtml(r.text)}</strong></li>`;
+                    });
+                    html += '</ul>';
+                    listDiv.innerHTML = html;
+                }
+            }
         });
 
         socket.on('answerTallyUpdate', (data) => {
@@ -305,11 +642,41 @@
 
         socket.on('timeUp', (data) => {
             playSound(220, 'sawtooth', 0.25); // Son indicateur de fin (A3)
-            let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
             let messageFin = data.isLastQuestion ? `<h2 style="color:#dc3545; margin-top:20px;">🏁 Le questionnaire est terminé ! 🏁</h2>` : "";
-            
+
+            if (data.type === 'open') {
+                // --- RÉSULTATS QUESTION OUVERTE : nuage de mots final + liste détaillée pour l'animateur ---
+                let html = `<h3 style="color:#007bff;">☁️ Voici le nuage de mots collectif !</h3>`;
+                html += `<div id="wordcloud-final" class="wordcloud-container"></div>`;
+                html += messageFin;
+                document.getElementById('options-container').innerHTML = html;
+                renderWordCloud(document.getElementById('wordcloud-final'), data.wordCloud);
+
+                if (isHost) {
+                    let statsHtml = `<div style="margin-top:20px; text-align:left; background:#fff; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.05);">`;
+                    statsHtml += `<h4 style="margin:0 0 10px 0;">📋 Toutes les réponses reçues :</h4><ul style="list-style:none; padding:0; margin:0;">`;
+                    data.responses.forEach(r => {
+                        statsHtml += `<li>${escapeHtml(r.pseudo)} : <strong>${escapeHtml(r.text)}</strong></li>`;
+                    });
+                    statsHtml += `</ul></div>`;
+                    document.getElementById('stats-container').innerHTML = statsHtml;
+                } else {
+                    document.getElementById('stats-container').innerHTML = "";
+                }
+                return;
+            }
+
+            let commentaire = data.comment ? data.comment : "Pas d'explication supplémentaire.";
+            let correctLabel;
+            if (data.type === 'multiple') {
+                const correctOptions = data.correctIndexes.map(i => `n°${i + 1} ("${data.options[i]}")`).join(', ');
+                correctLabel = `<h3 style="color:green;">Fin du temps ! Les bonnes réponses étaient : ${correctOptions}</h3>`;
+            } else {
+                correctLabel = `<h3 style="color:green;">Fin du temps ! La bonne réponse était la n°${data.correctIndex + 1} : "${data.correctText}"</h3>`;
+            }
+
             document.getElementById('options-container').innerHTML = `
-                <h3 style="color:green;">Fin du temps ! La bonne réponse était la n°${data.correctIndex + 1} : "${data.correctText}"</h3>
+                ${correctLabel}
                 <div style="background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 5px solid #007bff; text-align:left;">
                     <strong>💡 Complément :</strong> ${commentaire}
                 </div>
@@ -317,14 +684,14 @@
             `;
 
             // Rendu graphique des statistiques de réponse (Barres de répartition)
-            let totalVotes = data.stats.reduce((a, b) => a + b, 0) || 1;
+            let totalVotes = data.answeredCount || data.stats.reduce((a, b) => a + b, 0) || 1;
             let statsHtml = `<div style="margin-top:20px; text-align:left; background:#fff; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.05);">`;
             statsHtml += `<h4 style="margin:0 0 10px 0;">📊 Répartition des choix des participants :</h4>`;
             
             data.options.forEach((opt, idx) => {
                 let voteCount = data.stats[idx] || 0;
                 let percent = Math.round((voteCount / totalVotes) * 100);
-                let isCorrect = (idx === data.correctIndex);
+                let isCorrect = (data.type === 'multiple') ? data.correctIndexes.includes(idx) : (idx === data.correctIndex);
                 let color = isCorrect ? '#28a745' : '#dc3545';
                 
                 statsHtml += `
