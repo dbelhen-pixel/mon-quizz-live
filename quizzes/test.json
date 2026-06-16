@@ -1,1 +1,41 @@
-[]
+[
+  {
+    "type": "single",
+    "question": "Quelle est la capitale de la Bretagne ?",
+    "image": "",
+    "timer": 10,
+    "comment": "Rennes est la capitale administrative de la Bretagne.",
+    "options": [
+      "Lyon",
+      "Rennes",
+      "Nantes"
+    ],
+    "points": 100,
+    "correctIndex": 1
+  },
+  {
+    "type": "multiple",
+    "question": "Quels sont des langages de programmation ?",
+    "image": "",
+    "timer": 15,
+    "comment": "HTML et CSS sont des langages de balisage/style, pas de programmation.",
+    "options": [
+      "Python",
+      "HTML",
+      "JavaScript",
+      "CSS"
+    ],
+    "points": 100,
+    "correctIndexes": [
+      0,
+      2
+    ]
+  },
+  {
+    "type": "open",
+    "question": "Donne un mot pour décrire cette formation",
+    "image": "",
+    "timer": 20,
+    "comment": "Merci pour vos retours !"
+  }
+]
