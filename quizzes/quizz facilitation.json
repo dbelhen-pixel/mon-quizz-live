@@ -30,10 +30,17 @@
     "correctIndex": 1
   },
   {
-    "type": "open",
-    "question": "A quoi pensez vous si on vous dit cadre de collaboration",
+    "type": "single",
+    "question": "Rôle du commanditaire en qualification ?",
     "image": "",
     "timer": 25,
-    "comment": ""
+    "comment": "Le commanditaire est l'interlocuteur privilégié pour clarifier le besoin.",
+    "options": [
+      "Animer l'atelier",
+      "Apporter les informations clés sur l'intention et les livrables",
+      "Choisir les outils"
+    ],
+    "points": 10,
+    "correctIndex": 0
   }
 ]
