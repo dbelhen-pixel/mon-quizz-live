@@ -1,15 +1,18 @@
 [
   {
-    "question": "Quelle est la capitale de la BZH ?",
-    "options": [
-      "Lyon",
-      "Rennes"
-    ],
-    "correctIndex": 1,
+    "type": "single",
+    "question": "Quelle est la définition principale de la facilitation",
     "image": "",
-    "timer": 10,
-    "comment": "Paris est la capitale de la France depuis la fin du Moyen Âge.",
-    "points": 100
+    "timer": 15,
+    "comment": "La facilitation s'adresse aux collectifs pour favoriser leur autonomie.",
+    "options": [
+      "Une méthode pour former individuellement les collaborateurs",
+      "Une pratique visant à aider des collectifs à trouver par eux-mêmes des réponses",
+      "Une technique de management directif",
+      "Une expertise consistant à apporter des solutions expertes"
+    ],
+    "points": 100,
+    "correctIndex": 1
   },
   {
     "question": "Combien font 8 x 7 ?",
