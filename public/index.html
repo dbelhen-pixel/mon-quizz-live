@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mon Quizz Live Pro</title>
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
         .hidden { display: none; }
@@ -61,11 +62,17 @@
         <h3>📚 Bibliothèque de Quizz</h3>
         <div id="quiz-library"></div>
         <button class="btn" style="background:#28a745;" onclick="createQuizPrompt()">+ Nouveau Quizz</button>
+        <button class="btn" style="background:#198754;" onclick="document.getElementById('excel-import-new').click()">📥 Importer un Excel (nouveau quizz)</button>
+        <input type="file" id="excel-import-new" accept=".xlsx,.xls" style="display:none;" onchange="handleExcelImport(event, 'new')">
+        <br>
+        <a href="/modele_questions_quizz.xlsx" download style="font-size:13px; color:#007bff;">📄 Télécharger le modèle Excel</a>
 
         <hr>
 
         <h3>📝 Questions du quizz : <span id="editing-quiz-name">-</span></h3>
         <button class="btn" style="background:#28a745;" onclick="openQuestionForm(-1)">+ Nouvelle Question</button>
+        <button class="btn" style="background:#198754;" onclick="document.getElementById('excel-import-current').click()">📥 Importer un Excel (dans ce quizz)</button>
+        <input type="file" id="excel-import-current" accept=".xlsx,.xls" style="display:none;" onchange="handleExcelImport(event, 'current')">
         <hr>
         
         <div id="questions-list"></div>
@@ -310,6 +317,14 @@
             document.getElementById('host-active-quiz').innerText = activeQuizName || '-';
         });
 
+        socket.on('importResult', (data) => {
+            if (data.success) {
+                alert(`✅ Quizz "${data.quizName}" créé avec ${data.count} question(s) importée(s) depuis Excel.`);
+                editingQuizName = data.quizName;
+                socket.emit('getQuestions', data.quizName);
+            }
+        });
+
         function renderQuizLibrary() {
             const container = document.getElementById('quiz-library');
             if (!container) return;
@@ -384,6 +399,101 @@
         function editQuiz(name) {
             editingQuizName = name;
             socket.emit('getQuestions', name);
+        }
+
+        // --- IMPORT EXCEL ---
+        function parseExcelToQuestions(arrayBuffer) {
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+            const questions = [];
+            const errors = [];
+
+            rows.forEach((row, i) => {
+                const lineNum = i + 2; // ligne Excel réelle (1 = en-têtes)
+                const rawType = String(row['Type'] || 'single').trim().toLowerCase();
+                const type = ['single', 'multiple', 'open'].includes(rawType) ? rawType : 'single';
+                const questionText = String(row['Question'] || '').trim();
+
+                if (!questionText) { errors.push(`Ligne ${lineNum} : question vide, ignorée.`); return; }
+
+                const q = {
+                    type: type,
+                    question: questionText,
+                    image: String(row['Image'] || '').trim(),
+                    timer: parseInt(row['Temps']) || 10,
+                    comment: String(row['Commentaire'] || '').trim()
+                };
+
+                if (type !== 'open') {
+                    const options = [];
+                    for (let n = 1; n <= 6; n++) {
+                        const val = String(row['Option' + n] || '').trim();
+                        if (val !== '') options.push(val);
+                    }
+                    if (options.length < 2) { errors.push(`Ligne ${lineNum} : moins de 2 options, ignorée.`); return; }
+                    q.options = options;
+                    q.points = parseInt(row['Points']) || 10;
+
+                    const rawCorrect = String(row['BonnesReponses'] || '').trim();
+                    const indexes = rawCorrect.split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n) && n >= 0 && n < options.length);
+
+                    if (indexes.length === 0) { errors.push(`Ligne ${lineNum} : aucune bonne réponse valide indiquée, ignorée.`); return; }
+
+                    if (type === 'multiple') {
+                        q.correctIndexes = [...new Set(indexes)].sort((a, b) => a - b);
+                    } else {
+                        q.correctIndex = indexes[0];
+                    }
+                }
+
+                questions.push(q);
+            });
+
+            return { questions, errors };
+        }
+
+        function handleExcelImport(event, mode) {
+            const file = event.target.files[0];
+            event.target.value = ''; // permet de re-sélectionner le même fichier ensuite
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let result;
+                try {
+                    result = parseExcelToQuestions(e.target.result);
+                } catch (err) {
+                    alert("Impossible de lire ce fichier Excel. Vérifie qu'il respecte le modèle fourni.\n\nDétail : " + err.message);
+                    return;
+                }
+
+                const { questions, errors } = result;
+                if (questions.length === 0) {
+                    alert("Aucune question valide trouvée dans ce fichier.\n\n" + errors.join('\n'));
+                    return;
+                }
+
+                let warningMsg = errors.length > 0 ? `\n\n⚠️ ${errors.length} ligne(s) ignorée(s) :\n` + errors.join('\n') : '';
+
+                if (mode === 'new') {
+                    const name = prompt(`Nom du nouveau quizz à créer (${questions.length} question(s) détectée(s))${warningMsg} :`, file.name.replace(/\.(xlsx|xls)$/i, ''));
+                    if (!name || !name.trim()) return;
+                    socket.emit('createQuizWithQuestions', { name: name.trim(), questions: questions });
+                } else {
+                    if (!editingQuizName) return alert("Sélectionne d'abord un quizz à éditer dans la bibliothèque.");
+                    const replace = confirm(`${questions.length} question(s) détectée(s) dans le fichier.${warningMsg}\n\nClique sur OK pour les AJOUTER aux questions existantes de "${editingQuizName}",\nou sur Annuler pour les voir avant d'aller plus loin (REMPLACER nécessite une confirmation séparée).`);
+                    if (replace) {
+                        socket.emit('importQuestions', { quizName: editingQuizName, questions: questions, mode: 'append' });
+                    } else {
+                        if (confirm(`Veux-tu plutôt REMPLACER toutes les questions existantes de "${editingQuizName}" par ces ${questions.length} nouvelle(s) question(s) ? Cette action est irréversible.`)) {
+                            socket.emit('importQuestions', { quizName: editingQuizName, questions: questions, mode: 'replace' });
+                        }
+                    }
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         // --- GESTION DES QUESTIONS DU QUIZZ EN COURS D'ÉDITION ---
