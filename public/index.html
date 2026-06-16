@@ -231,16 +231,52 @@
             }
         }
 
+        function csvEscape(value) {
+            return `"${String(value).replace(/"/g, '""')}"`;
+        }
+
         function exportCSV() {
-            if(latestLeaderboard.length === 0) return alert("Aucune donnée disponible.");
-            let csvContent = "data:text/csv;charset=utf-8,Rang,Pseudo,Score\n";
-            latestLeaderboard.forEach((p, index) => {
-                csvContent += `${index + 1},"${p.pseudo.replace(/"/g, '""')}",${p.score}\n`;
+            if (latestLeaderboard.length === 0) return alert("Aucune donnée disponible.");
+
+            let rows = [];
+            rows.push(['Pseudo', 'Question N°', 'Question', 'Réponse donnée', 'Bonne réponse', 'Résultat', 'Points obtenus']);
+
+            // Une ligne par joueur et par question (détail complet)
+            latestLeaderboard.forEach((p) => {
+                const history = p.history || [];
+                history.forEach((h) => {
+                    let resultat;
+                    if (h.isCorrect === true) resultat = 'Correct';
+                    else if (h.isCorrect === false) resultat = 'Incorrect';
+                    else resultat = 'N/A (question ouverte)';
+
+                    rows.push([
+                        p.pseudo,
+                        h.questionIndex + 1,
+                        h.question,
+                        h.givenAnswerText,
+                        h.correctAnswerText,
+                        resultat,
+                        h.points
+                    ]);
+                });
             });
+
+            // Ligne vide de séparation avant le récapitulatif des totaux
+            rows.push([]);
+            rows.push(['Pseudo', 'Score total au quizz']);
+            latestLeaderboard
+                .slice()
+                .sort((a, b) => b.score - a.score)
+                .forEach((p) => rows.push([p.pseudo, p.score]));
+
+            let csvContent = "data:text/csv;charset=utf-8," +
+                rows.map(row => row.map(csvEscape).join(',')).join('\n');
+
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "resultats_quizz.csv");
+            link.setAttribute("download", "resultats_quizz_detaille.csv");
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
