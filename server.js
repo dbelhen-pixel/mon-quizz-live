@@ -186,6 +186,40 @@ function resetGameState() {
   io.emit('quizReset');
 }
 
+function sanitizeQuestion(q) {
+  if (!q || typeof q !== 'object') return null;
+  const type = ['single', 'multiple', 'open'].includes(q.type) ? q.type : 'single';
+  const question = String(q.question || '').trim();
+  if (!question) return null;
+
+  const sanitized = {
+    type: type,
+    question: question.slice(0, 500),
+    image: String(q.image || '').slice(0, 500),
+    timer: (Number.isInteger(q.timer) && q.timer > 0) ? q.timer : 10,
+    comment: String(q.comment || '').slice(0, 1000)
+  };
+
+  if (type !== 'open') {
+    const options = Array.isArray(q.options) ? q.options.map(o => String(o).trim()).filter(o => o !== '').slice(0, 8) : [];
+    if (options.length < 2) return null;
+    sanitized.options = options;
+    sanitized.points = (Number.isInteger(q.points) && q.points > 0) ? q.points : 10;
+
+    if (type === 'multiple') {
+      const idx = Array.isArray(q.correctIndexes) ? [...new Set(q.correctIndexes.filter(n => Number.isInteger(n) && n >= 0 && n < options.length))].sort((a, b) => a - b) : [];
+      if (idx.length === 0) return null;
+      sanitized.correctIndexes = idx;
+    } else {
+      const idx = Number.isInteger(q.correctIndex) ? q.correctIndex : -1;
+      if (idx < 0 || idx >= options.length) return null;
+      sanitized.correctIndex = idx;
+    }
+  }
+
+  return sanitized;
+}
+
 io.on('connection', (socket) => {
   console.log('Utilisateur connecté :', socket.id);
 
@@ -349,6 +383,29 @@ io.on('connection', (socket) => {
     syncQuizToGitHubAsync(name, []);
   });
 
+  // Création d'un nouveau quizz directement à partir de questions importées (ex: depuis un fichier Excel)
+  socket.on('createQuizWithQuestions', ({ name: rawName, questions: rawQuestions }) => {
+    let name = sanitizeQuizName(rawName);
+    if (!name) return;
+
+    // Si le nom existe déjà, on en propose un disponible automatiquement plutôt que d'échouer silencieusement
+    let finalName = name;
+    let suffix = 2;
+    while (quizList.includes(finalName)) {
+      finalName = `${name} (${suffix})`;
+      suffix++;
+    }
+
+    const data = (Array.isArray(rawQuestions) ? rawQuestions : []).map(sanitizeQuestion).filter(q => q !== null);
+
+    saveQuizLocally(finalName, data);
+    refreshQuizList();
+    broadcastQuizList();
+    syncQuizToGitHubAsync(finalName, data);
+
+    socket.emit('importResult', { success: true, quizName: finalName, count: data.length });
+  });
+
   socket.on('duplicateQuiz', ({ source, newName }) => {
     const name = sanitizeQuizName(newName);
     if (!name || quizList.includes(name) || !quizList.includes(source)) return;
@@ -426,6 +483,28 @@ io.on('connection', (socket) => {
     try { data = JSON.parse(fs.readFileSync(quizFilePath(name), 'utf8')); } catch (err) {}
 
     data.splice(index, 1);
+    saveQuizLocally(name, data);
+
+    if (name === currentQuizName) questions = data;
+    io.emit('questionsList', { quizName: name, questions: data });
+
+    syncQuizToGitHubAsync(name, data);
+  });
+
+  // Import de questions (ex: depuis un fichier Excel) dans un quizz existant : ajout ou remplacement complet
+  socket.on('importQuestions', ({ quizName, questions: rawQuestions, mode }) => {
+    const name = quizList.includes(quizName) ? quizName : currentQuizName;
+    if (!name) return;
+
+    const imported = (Array.isArray(rawQuestions) ? rawQuestions : []).map(sanitizeQuestion).filter(q => q !== null);
+    if (imported.length === 0) return;
+
+    let data = [];
+    if (mode !== 'replace') {
+      try { data = JSON.parse(fs.readFileSync(quizFilePath(name), 'utf8')); } catch (err) {}
+    }
+    data = data.concat(imported);
+
     saveQuizLocally(name, data);
 
     if (name === currentQuizName) questions = data;
