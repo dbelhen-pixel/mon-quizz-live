@@ -33,14 +33,14 @@
     "type": "single",
     "question": "Rôle du commanditaire en qualification ?",
     "image": "",
-    "timer": 25,
+    "timer": 15,
     "comment": "Le commanditaire est l'interlocuteur privilégié pour clarifier le besoin.",
     "options": [
       "Animer l'atelier",
       "Apporter les informations clés sur l'intention et les livrables",
       "Choisir les outils"
     ],
-    "points": 10,
+    "points": 100,
     "correctIndex": 0
   }
 ]
