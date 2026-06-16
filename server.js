@@ -80,81 +80,84 @@ function loadQuiz(name) {
   currentQuizName = name;
 }
 
-async function syncQuizToGitHub(name, data) {
-  try {
-    fs.writeFileSync(quizFilePath(name), JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.error("Erreur d'écriture locale :", err);
-  }
+function saveQuizLocally(name, data) {
+  fs.writeFileSync(quizFilePath(name), JSON.stringify(data, null, 2), 'utf8');
+}
 
+function syncQuizToGitHubAsync(name, data) {
+  // Lancée "en arrière-plan" : ne bloque jamais le client en attendant la réponse de GitHub.
   if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) {
     console.warn("⚠️ Configuration GitHub manquante. Sauvegarde uniquement locale.");
     return;
   }
 
-  try {
-    const remotePath = `quizzes/${encodeURIComponent(name)}.json`;
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${remotePath}`;
-    const getRes = await fetch(url, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
+  (async () => {
+    try {
+      const remotePath = `quizzes/${encodeURIComponent(name)}.json`;
+      const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${remotePath}`;
+      const getRes = await fetch(url, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
 
-    let sha = "";
-    if (getRes.ok) {
-      const fileData = await getRes.json();
-      sha = fileData.sha;
+      let sha = "";
+      if (getRes.ok) {
+        const fileData = await getRes.json();
+        sha = fileData.sha;
+      }
+
+      const contentBase64 = Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
+
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Node-JS-Quizz-Server'
+        },
+        body: JSON.stringify({
+          message: `📝 Mise à jour du quizz "${name}" depuis le panneau admin`,
+          content: contentBase64,
+          sha: sha
+        })
+      });
+
+      if (putRes.ok) {
+        console.log(`🚀 Quizz "${name}" synchronisé sur GitHub !`);
+      } else {
+        const errData = await putRes.json();
+        console.error("❌ Erreur API GitHub :", errData);
+      }
+    } catch (err) {
+      console.error("❌ Échec de la connexion à l'API GitHub :", err);
     }
-
-    const contentBase64 = Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
-
-    const putRes = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'Node-JS-Quizz-Server'
-      },
-      body: JSON.stringify({
-        message: `📝 Mise à jour du quizz "${name}" depuis le panneau admin`,
-        content: contentBase64,
-        sha: sha
-      })
-    });
-
-    if (putRes.ok) {
-      console.log(`🚀 Quizz "${name}" synchronisé sur GitHub !`);
-    } else {
-      const errData = await putRes.json();
-      console.error("❌ Erreur API GitHub :", errData);
-    }
-  } catch (err) {
-    console.error("❌ Échec de la connexion à l'API GitHub :", err);
-  }
+  })();
 }
 
-async function deleteQuizOnGitHub(name) {
+function deleteQuizOnGitHubAsync(name) {
   if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) return;
-  try {
-    const remotePath = `quizzes/${encodeURIComponent(name)}.json`;
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${remotePath}`;
-    const getRes = await fetch(url, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
-    if (!getRes.ok) return;
-    const fileData = await getRes.json();
+  (async () => {
+    try {
+      const remotePath = `quizzes/${encodeURIComponent(name)}.json`;
+      const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${remotePath}`;
+      const getRes = await fetch(url, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
+      if (!getRes.ok) return;
+      const fileData = await getRes.json();
 
-    await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'Node-JS-Quizz-Server'
-      },
-      body: JSON.stringify({
-        message: `🗑️ Suppression du quizz "${name}" depuis le panneau admin`,
-        sha: fileData.sha
-      })
-    });
-    console.log(`🗑️ Quizz "${name}" supprimé sur GitHub.`);
-  } catch (err) {
-    console.error("❌ Échec de la suppression GitHub :", err);
-  }
+      await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Node-JS-Quizz-Server'
+        },
+        body: JSON.stringify({
+          message: `🗑️ Suppression du quizz "${name}" depuis le panneau admin`,
+          sha: fileData.sha
+        })
+      });
+      console.log(`🗑️ Quizz "${name}" supprimé sur GitHub.`);
+    } catch (err) {
+      console.error("❌ Échec de la suppression GitHub :", err);
+    }
+  })();
 }
 
 initQuizzes();
@@ -337,44 +340,46 @@ io.on('connection', (socket) => {
     socket.emit('quizList', { quizzes: quizList, active: currentQuizName });
   });
 
-  socket.on('createQuiz', async (rawName) => {
+  socket.on('createQuiz', (rawName) => {
     const name = sanitizeQuizName(rawName);
     if (!name || quizList.includes(name)) return;
-    await syncQuizToGitHub(name, []);
+    saveQuizLocally(name, []);
     refreshQuizList();
     broadcastQuizList();
+    syncQuizToGitHubAsync(name, []);
   });
 
-  socket.on('duplicateQuiz', async ({ source, newName }) => {
+  socket.on('duplicateQuiz', ({ source, newName }) => {
     const name = sanitizeQuizName(newName);
     if (!name || quizList.includes(name) || !quizList.includes(source)) return;
     let data = [];
     try { data = JSON.parse(fs.readFileSync(quizFilePath(source), 'utf8')); } catch (err) {}
-    await syncQuizToGitHub(name, data);
+    saveQuizLocally(name, data);
     refreshQuizList();
     broadcastQuizList();
+    syncQuizToGitHubAsync(name, data);
   });
 
-  socket.on('renameQuiz', async ({ oldName, newName }) => {
+  socket.on('renameQuiz', ({ oldName, newName }) => {
     const name = sanitizeQuizName(newName);
     if (!name || quizList.includes(name) || !quizList.includes(oldName)) return;
     let data = [];
     try { data = JSON.parse(fs.readFileSync(quizFilePath(oldName), 'utf8')); } catch (err) {}
-    await syncQuizToGitHub(name, data);
+    saveQuizLocally(name, data);
     try { fs.unlinkSync(quizFilePath(oldName)); } catch (err) {}
-    await deleteQuizOnGitHub(oldName);
     if (currentQuizName === oldName) {
       currentQuizName = name;
       questions = data;
     }
     refreshQuizList();
     broadcastQuizList();
+    syncQuizToGitHubAsync(name, data);
+    deleteQuizOnGitHubAsync(oldName);
   });
 
-  socket.on('deleteQuiz', async (name) => {
+  socket.on('deleteQuiz', (name) => {
     if (!quizList.includes(name) || quizList.length <= 1) return;
     try { fs.unlinkSync(quizFilePath(name)); } catch (err) {}
-    await deleteQuizOnGitHub(name);
     refreshQuizList();
 
     if (currentQuizName === name) {
@@ -382,6 +387,7 @@ io.on('connection', (socket) => {
       resetGameState();
     }
     broadcastQuizList();
+    deleteQuizOnGitHubAsync(name);
   });
 
   socket.on('selectQuizForGame', (name) => {
@@ -400,28 +406,32 @@ io.on('connection', (socket) => {
     socket.emit('questionsList', { quizName: name, questions: data });
   });
 
-  socket.on('saveQuestion', async ({ quizName, index, question }) => {
+  socket.on('saveQuestion', ({ quizName, index, question }) => {
     const name = quizList.includes(quizName) ? quizName : currentQuizName;
     let data = [];
     try { data = JSON.parse(fs.readFileSync(quizFilePath(name), 'utf8')); } catch (err) {}
 
     if (index >= 0) data[index] = question; else data.push(question);
-    await syncQuizToGitHub(name, data);
+    saveQuizLocally(name, data);
 
     if (name === currentQuizName) questions = data;
     io.emit('questionsList', { quizName: name, questions: data });
+
+    syncQuizToGitHubAsync(name, data);
   });
 
-  socket.on('deleteQuestion', async ({ quizName, index }) => {
+  socket.on('deleteQuestion', ({ quizName, index }) => {
     const name = quizList.includes(quizName) ? quizName : currentQuizName;
     let data = [];
     try { data = JSON.parse(fs.readFileSync(quizFilePath(name), 'utf8')); } catch (err) {}
 
     data.splice(index, 1);
-    await syncQuizToGitHub(name, data);
+    saveQuizLocally(name, data);
 
     if (name === currentQuizName) questions = data;
     io.emit('questionsList', { quizName: name, questions: data });
+
+    syncQuizToGitHubAsync(name, data);
   });
 
   socket.on('disconnect', () => {
