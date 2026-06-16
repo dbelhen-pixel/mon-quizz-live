@@ -175,6 +175,7 @@ function resetGameState() {
   for (let id in players) {
     players[id].score = 0;
     players[id].hasAnswered = false;
+    players[id].history = [];
   }
 
   io.emit('updateLeaderboard', Object.values(players));
@@ -189,7 +190,7 @@ io.on('connection', (socket) => {
   socket.emit('quizList', { quizzes: quizList, active: currentQuizName });
 
   socket.on('joinGame', (pseudo) => {
-    players[socket.id] = { pseudo: pseudo, score: 0, hasAnswered: false };
+    players[socket.id] = { pseudo: pseudo, score: 0, hasAnswered: false, history: [] };
     io.emit('updateLeaderboard', Object.values(players));
     io.emit('answerTallyUpdate', { answered: Object.values(players).filter(p => p.hasAnswered).length, total: Object.keys(players).length });
   });
@@ -208,7 +209,10 @@ io.on('connection', (socket) => {
       wordCloudData = {};  // Réinitialisation du nuage de mots
 
       if (currentQuestionIndex === 0) {
-        for (let id in players) players[id].score = 0;
+        for (let id in players) {
+          players[id].score = 0;
+          players[id].history = [];
+        }
         io.emit('updateLeaderboard', Object.values(players));
       }
 
@@ -244,24 +248,47 @@ io.on('connection', (socket) => {
     currentAnswers[socket.id] = answer;
 
     if (qType === 'single') {
-      if (answer === q.correctIndex) {
+      let isCorrect = (answer === q.correctIndex);
+      let earnedPoints = 0;
+      if (isCorrect) {
         // Règle de rapidité : Base de 50% des points + bonus dégressif selon le temps restant
         let maxPoints = q.points || 10;
         let timeRatio = timeLeft / totalTimeForQuestion;
-        let earnedPoints = Math.round(maxPoints * (0.5 + 0.5 * timeRatio));
-        player.score += (earnedPoints > 0 ? earnedPoints : 1);
+        earnedPoints = Math.round(maxPoints * (0.5 + 0.5 * timeRatio));
+        if (earnedPoints <= 0) earnedPoints = 1;
+        player.score += earnedPoints;
       }
+      player.history.push({
+        questionIndex: currentQuestionIndex,
+        question: q.question,
+        type: qType,
+        givenAnswerText: (typeof answer === 'number' && q.options[answer] !== undefined) ? q.options[answer] : '(aucune réponse)',
+        correctAnswerText: q.options[q.correctIndex],
+        isCorrect: isCorrect,
+        points: earnedPoints
+      });
     } else if (qType === 'multiple') {
       // Scoring "tout ou rien" : la sélection doit correspondre EXACTEMENT aux bonnes réponses
       const correct = (q.correctIndexes || []).slice().sort((a, b) => a - b);
       const given = Array.isArray(answer) ? answer.slice().sort((a, b) => a - b) : [];
       const isCorrect = correct.length > 0 && correct.length === given.length && correct.every((v, i) => v === given[i]);
+      let earnedPoints = 0;
       if (isCorrect) {
         let maxPoints = q.points || 10;
         let timeRatio = timeLeft / totalTimeForQuestion;
-        let earnedPoints = Math.round(maxPoints * (0.5 + 0.5 * timeRatio));
-        player.score += (earnedPoints > 0 ? earnedPoints : 1);
+        earnedPoints = Math.round(maxPoints * (0.5 + 0.5 * timeRatio));
+        if (earnedPoints <= 0) earnedPoints = 1;
+        player.score += earnedPoints;
       }
+      player.history.push({
+        questionIndex: currentQuestionIndex,
+        question: q.question,
+        type: qType,
+        givenAnswerText: given.length > 0 ? given.map(i => q.options[i]).join(' + ') : '(aucune réponse)',
+        correctAnswerText: correct.map(i => q.options[i]).join(' + '),
+        isCorrect: isCorrect,
+        points: earnedPoints
+      });
     } else if (qType === 'open') {
       // Question ouverte : pas de score, collecte pour le nuage de mots
       const text = String(answer || '').trim().slice(0, 40);
@@ -270,6 +297,16 @@ io.on('connection', (socket) => {
         if (!wordCloudData[key]) wordCloudData[key] = { display: text, count: 0 };
         wordCloudData[key].count++;
       }
+
+      player.history.push({
+        questionIndex: currentQuestionIndex,
+        question: q.question,
+        type: qType,
+        givenAnswerText: text || '(aucune réponse)',
+        correctAnswerText: '(question ouverte, pas de bonne réponse)',
+        isCorrect: null,
+        points: 0
+      });
 
       // Mise à jour en direct du nuage de mots pour tout le monde
       io.emit('wordCloudUpdate', {
@@ -411,6 +448,26 @@ function startTimer() {
         const q = questions[currentQuestionIndex];
         const qType = q.type || 'single';
         const options = q.options || [];
+
+        // Pour les joueurs n'ayant pas répondu à temps, on enregistre une entrée "aucune réponse" dans leur historique
+        for (let id in players) {
+          if (!(id in currentAnswers)) {
+            let correctAnswerText;
+            if (qType === 'single') correctAnswerText = options[q.correctIndex];
+            else if (qType === 'multiple') correctAnswerText = (q.correctIndexes || []).map(i => options[i]).join(' + ');
+            else correctAnswerText = '(question ouverte, pas de bonne réponse)';
+
+            players[id].history.push({
+              questionIndex: currentQuestionIndex,
+              question: q.question,
+              type: qType,
+              givenAnswerText: '(aucune réponse)',
+              correctAnswerText: correctAnswerText,
+              isCorrect: qType === 'open' ? null : false,
+              points: 0
+            });
+          }
+        }
 
         // Compilation des statistiques de vote pour cette question
         let stats = new Array(options.length).fill(0);
