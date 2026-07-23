@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# Données de session générées par le module Facilitation (contiennent des saisies de participants)
+data/facilitation/sequences/*.json
+data/facilitation/history/*.json

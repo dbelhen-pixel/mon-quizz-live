@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
@@ -590,5 +591,8 @@ function startTimer() {
     }
   }, 1000);
 }
+
+// --- Module Facilitation (nouvel outil, indépendant du quizz) ---
+require('./facilitation-server')(app, io);
 
 http.listen(PORT, () => { console.log(`Serveur démarré sur le port ${PORT}`); });
