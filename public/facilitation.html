@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facilitation - Séquences d'animation</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
+  .hidden { display: none !important; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1, h2, h3 { margin-top: 0; }
+  .btn { padding: 9px 18px; margin: 4px; font-size: 15px; cursor: pointer; border: none; border-radius: 6px; background: #007bff; color: #fff; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.88; }
+  .btn-vert { background: #28a745; }
+  .btn-gris { background: #6c757d; }
+  .btn-rouge { background: #dc3545; }
+  .btn-orange { background: #fd7e14; }
+  .btn-petit { padding: 4px 10px; font-size: 13px; }
+  .top-nav { text-align: left; margin-bottom: 14px; }
+  input[type=text], input[type=number], input[type=time], textarea, select {
+    padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; width: 100%; margin-bottom: 10px; font-family: inherit;
+  }
+  label { display:block; text-align:left; font-weight:600; font-size: 13px; margin-bottom: 4px; color:#555; }
+  .carte { background: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); padding: 18px; margin-bottom: 16px; text-align: left; }
+  .ligne-seq { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+  .badge { display:inline-block; padding: 2px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; background:#e9ecef; color:#495057; }
+  .badge-archivee { background:#f8d7da; color:#842029; }
+  .grille2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .etape-item { border:1px solid #e2e5e9; border-radius:8px; padding:12px; margin-bottom:10px; background:#fafbfc; }
+  .etape-item .type-badge { font-size: 11px; padding:2px 8px; border-radius:10px; color:#fff; }
+  .type-individuel { background:#17a2b8; }
+  .type-mise_en_commun { background:#6f42c1; }
+  .type-temps_libre { background:#fd7e14; }
+  #timer-affichage { font-size: 3.2em; font-weight:bold; color:#28a745; transition: color 0.3s, transform 0.15s; }
+  #timer-affichage.alerte { animation: pulse 0.6s ease; }
+  @keyframes pulse { 0% { transform: scale(1);} 50% { transform: scale(1.15);} 100% { transform: scale(1);} }
+  .t-orange { color:#fd7e14 !important; }
+  .t-rouge { color:#dc3545 !important; }
+  .connectes-box { background:#eef2f7; border-radius:8px; padding:10px 14px; display:flex; gap:18px; flex-wrap:wrap; font-size:14px; }
+  .groupe-chip { display:inline-block; padding:3px 10px; border-radius:14px; color:#fff; font-size:12px; font-weight:600; margin:2px; cursor:pointer; }
+  .participant-chip { display:inline-block; padding:4px 10px; border-radius:14px; background:#e9ecef; margin:3px; font-size:13px; cursor:pointer; }
+  .chrono-etape { display:flex; justify-content:space-between; padding:8px 10px; border-left:4px solid #ccc; margin-bottom:6px; background:#fff; border-radius:0 6px 6px 0; }
+  .chrono-etape.en-cours { border-left-color:#28a745; background:#eafbef; font-weight:600; }
+  .chrono-etape.fait { border-left-color:#6c757d; opacity:0.6; }
+  .retenue-item { display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid #e2e5e9; border-radius:6px; padding:8px 10px; margin-bottom:6px; }
+  .progression-bar-bg { background:#e9ecef; border-radius:8px; height:14px; width:100%; overflow:hidden; }
+  .progression-bar { background:#28a745; height:100%; transition:width 0.4s ease; }
+  textarea { min-height: 70px; resize: vertical; }
+  .msg-info { background:#fff3cd; border:1px solid #ffe69c; padding:10px 14px; border-radius:6px; font-size:14px; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top-nav"><a href="index.html">← Retour à l'accueil des outils</a></div>
+
+  <!-- ============ ECRAN CHOIX ROLE ============ -->
+  <div id="ecran-role">
+    <h1>🧭 Facilitation</h1>
+    <p>Concevez et animez vos séquences d'atelier.</p>
+    <button class="btn btn-vert" onclick="allerAnimateur()">🧑‍🏫 Je suis l'animateur</button>
+    <button class="btn" onclick="allerParticipant()">🙋 Je suis participant</button>
+  </div>
+
+  <!-- ============ PARTICIPANT : REJOINDRE ============ -->
+  <div id="ecran-join-participant" class="hidden">
+    <h2>Rejoindre une session</h2>
+    <label>Code de session (fourni par l'animateur)</label>
+    <input type="text" id="input-code-session" placeholder="ex: k3f9a2b1">
+    <label>Votre prénom / pseudo</label>
+    <input type="text" id="input-pseudo-participant" placeholder="Votre prénom">
+    <button class="btn btn-vert" onclick="rejoindreSession()">Rejoindre</button>
+    <button class="btn btn-gris" onclick="retourRole()">Retour</button>
+  </div>
+
+  <!-- ============ PARTICIPANT : SESSION EN COURS ============ -->
+  <div id="ecran-session-participant" class="hidden">
+    <div class="carte">
+      <div class="ligne-seq">
+        <div><strong id="p-nom-seq"></strong> <span class="badge" id="p-groupe-badge"></span></div>
+        <div class="connectes-box"><span id="p-connectes"></span></div>
+      </div>
+      <div class="progression-bar-bg" style="margin-top:8px;"><div class="progression-bar" id="p-progression" style="width:0%;"></div></div>
+      <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="p-progression-txt"></div>
+    </div>
+
+    <div class="carte" id="p-carte-etape">
+      <h2 id="p-titre-etape">En attente du démarrage...</h2>
+      <p id="p-consignes-etape" style="white-space:pre-wrap;"></p>
+      <div style="text-align:center;">
+        <div id="timer-affichage">--:--</div>
+      </div>
+
+      <div id="p-zone-individuel" class="hidden">
+        <label>Votre saisie</label>
+        <textarea id="p-saisie-texte" placeholder="Écrivez vos idées ici..."></textarea>
+        <button class="btn btn-vert" onclick="envoyerSaisie()">Envoyer</button>
+        <span id="p-saisie-statut" style="margin-left:10px; color:#28a745; font-weight:600;"></span>
+      </div>
+
+      <div id="p-zone-mise-en-commun" class="hidden">
+        <h3>Idées partagées</h3>
+        <div id="p-liste-retenues"></div>
+      </div>
+
+      <div id="p-zone-temps-libre" class="hidden">
+        <p style="font-style:italic; color:#6c757d;">Écoutez les consignes de l'animateur.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ANIMATEUR : LISTE DES SEQUENCES ============ -->
+  <div id="ecran-liste-sequences" class="hidden">
+    <h2>Mes séquences</h2>
+    <button class="btn btn-vert" onclick="creerSequence()">➕ Nouvelle séquence</button>
+    <button class="btn btn-gris" onclick="ouvrirConfig()">⚙️ Publics / Lieux</button>
+    <button class="btn btn-gris" onclick="retourRole()">Retour</button>
+    <div id="liste-sequences" style="margin-top:16px;"></div>
+  </div>
+
+  <!-- ============ ANIMATEUR : CONFIG PUBLICS/LIEUX ============ -->
+  <div id="ecran-config" class="hidden">
+    <h2>Paramétrage des publics et lieux</h2>
+    <div class="grille2">
+      <div class="carte">
+        <h3>Publics</h3>
+        <div id="liste-publics"></div>
+        <input type="text" id="nouveau-public" placeholder="Ajouter un public">
+        <button class="btn btn-petit" onclick="ajouterPublic()">Ajouter</button>
+      </div>
+      <div class="carte">
+        <h3>Lieux</h3>
+        <div id="liste-lieux"></div>
+        <input type="text" id="nouveau-lieu" placeholder="Ajouter un lieu">
+        <button class="btn btn-petit" onclick="ajouterLieu()">Ajouter</button>
+      </div>
+    </div>
+    <button class="btn btn-gris" onclick="afficherEcran('ecran-liste-sequences'); chargerSequences();">← Retour aux séquences</button>
+  </div>
+
+  <!-- ============ ANIMATEUR : EDITION SEQUENCE ============ -->
+  <div id="ecran-edition-sequence" class="hidden">
+    <h2 id="edition-titre">Édition de la séquence</h2>
+    <div class="carte">
+      <label>Nom de la séquence</label>
+      <input type="text" id="seq-nom">
+      <label>Descriptif</label>
+      <textarea id="seq-descriptif"></textarea>
+      <div class="grille2">
+        <div>
+          <label>Public</label>
+          <select id="seq-public"></select>
+        </div>
+        <div>
+          <label>Lieu</label>
+          <select id="seq-lieu"></select>
+        </div>
+      </div>
+      <div class="grille2">
+        <div>
+          <label>Heure de démarrage prévue</label>
+          <input type="time" id="seq-heure">
+        </div>
+        <div>
+          <label>Email destinataire (extraction)</label>
+          <input type="text" id="seq-email-to" placeholder="destinataire@exemple.fr">
+        </div>
+      </div>
+      <button class="btn" onclick="enregistrerInfosSequence()">💾 Enregistrer les informations</button>
+    </div>
+
+    <div class="carte">
+      <h3>👥 Groupes</h3>
+      <div id="liste-groupes"></div>
+      <div class="grille2">
+        <input type="text" id="nouveau-groupe-nom" placeholder="Nom du groupe">
+        <input type="color" id="nouveau-groupe-couleur" value="#007bff" style="height:40px;">
+      </div>
+      <button class="btn btn-petit" onclick="ajouterGroupe()">Ajouter un groupe</button>
+    </div>
+
+    <div class="carte">
+      <h3>📋 Étapes</h3>
+      <div id="liste-etapes"></div>
+      <button class="btn btn-vert" onclick="ouvrirFormEtape()">➕ Ajouter une étape</button>
+    </div>
+
+    <div id="form-etape" class="carte hidden">
+      <h3 id="form-etape-titre">Nouvelle étape</h3>
+      <input type="hidden" id="etape-id">
+      <label>Type d'étape</label>
+      <select id="etape-type" onchange="majFormEtape()">
+        <option value="individuel">Travail individuel</option>
+        <option value="mise_en_commun">Mise en commun</option>
+        <option value="temps_libre">Temps libre / message</option>
+      </select>
+      <label>Titre</label>
+      <input type="text" id="etape-titre">
+      <label>Durée (minutes)</label>
+      <input type="number" id="etape-duree" min="1" value="10">
+      <label>Consignes (300 caractères max)</label>
+      <textarea id="etape-consignes" maxlength="300"></textarea>
+      <div id="etape-source-wrap" class="hidden">
+        <label>Étape source (travaux à mettre en commun)</label>
+        <select id="etape-source"></select>
+      </div>
+      <button class="btn btn-vert" onclick="validerEtape()">💾 Enregistrer l'étape</button>
+      <button class="btn btn-gris" onclick="fermerFormEtape()">Annuler</button>
+    </div>
+
+    <div class="carte">
+      <button class="btn btn-vert" onclick="lancerSession()">🚀 Lancer la session</button>
+      <button class="btn btn-gris" onclick="afficherEcran('ecran-liste-sequences'); chargerSequences();">← Retour aux séquences</button>
+    </div>
+  </div>
+
+  <!-- ============ ANIMATEUR : SESSION EN DIRECT ============ -->
+  <div id="ecran-session-admin" class="hidden">
+    <div class="carte">
+      <div class="ligne-seq">
+        <h2 id="a-nom-seq" style="margin:0;"></h2>
+        <div>
+          <span class="badge">Code session : <strong id="a-code-session"></strong></span>
+        </div>
+      </div>
+      <div class="connectes-box" id="a-connectes" style="margin-top:10px;"></div>
+      <div class="progression-bar-bg" style="margin-top:8px;"><div class="progression-bar" id="a-progression" style="width:0%;"></div></div>
+      <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="a-progression-txt"></div>
+    </div>
+
+    <div class="grille2">
+      <div class="carte">
+        <h3>⏱ Étape en cours</h3>
+        <div id="a-etape-vide" class="msg-info">Aucune étape démarrée. Choisissez une étape dans la chronologie ci-dessous.</div>
+        <div id="a-etape-active" class="hidden">
+          <strong id="a-titre-etape"></strong>
+          <p id="a-consignes-etape" style="font-size:13px; color:#555; white-space:pre-wrap;"></p>
+          <div style="text-align:center;"><div id="timer-affichage-admin" style="font-size:2.6em; font-weight:bold; color:#28a745;">--:--</div></div>
+          <div style="text-align:center;">
+            <button class="btn btn-petit btn-orange" onclick="controleTimer('pause')">⏸ Pause</button>
+            <button class="btn btn-petit btn-vert" onclick="controleTimer('reprendre')">▶ Reprendre</button>
+            <button class="btn btn-petit btn-gris" onclick="controleTimer('reinitialiser')">↺ Réinitialiser</button>
+            <button class="btn btn-petit" onclick="modifierTimer()">✏ Modifier durée</button>
+          </div>
+          <div id="a-non-participants" style="font-size:12px; color:#dc3545; margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <h3>👥 Groupes</h3>
+        <button class="btn btn-petit" onclick="autoAssignerGroupes()">⚖️ Répartir automatiquement</button>
+        <div id="a-groupes-legende" style="margin:8px 0;"></div>
+        <div style="font-size:13px; color:#555;">Cliquez sur un participant puis sur un groupe pour l'affecter :</div>
+        <div id="a-participants-liste" style="margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <div class="carte">
+      <h3>🗓 Chronologie de la séquence</h3>
+      <div id="a-chronologie"></div>
+    </div>
+
+    <div class="carte" id="a-mise-en-commun-panel">
+      <h3>💬 Mise en commun</h3>
+      <div id="a-mise-en-commun-contenu"><p style="color:#6c757d;">Démarrez une étape de type "Mise en commun" pour l'utiliser.</p></div>
+    </div>
+
+    <div class="carte">
+      <h3>📤 Extraction des travaux</h3>
+      <a id="a-lien-telecharger" class="btn" href="#" target="_blank">⬇️ Télécharger (CSV)</a>
+      <button class="btn btn-vert" onclick="envoyerParEmail()">✉️ Envoyer par email</button>
+      <span id="a-email-statut" style="margin-left:8px; font-size:13px;"></span>
+    </div>
+
+    <button class="btn btn-gris" onclick="quitterSession()">← Quitter la session (retour édition)</button>
+  </div>
+
+</div>
+
+<script>
+let socket = null;
+let etatRole = null; // 'admin' | 'participant'
+let sequenceCourante = null; // objet séquence complet (admin)
+let sequenceIdCourante = null;
+let etapeCouranteId = null;
+let participantId = localStorage.getItem('facilitation_participant_id') || null;
+let groupesMap = {};
+let selectionParticipantPourGroupe = null;
+let etapeCouranteType = null;
+
+function afficherEcran(id) {
+  document.querySelectorAll('#ecran-role, #ecran-join-participant, #ecran-session-participant, #ecran-liste-sequences, #ecran-config, #ecran-edition-sequence, #ecran-session-admin')
+    .forEach(el => el.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+function retourRole() { afficherEcran('ecran-role'); }
+
+// ---------------- NAVIGATION DE BASE ----------------
+function allerAnimateur() {
+  etatRole = 'admin';
+  afficherEcran('ecran-liste-sequences');
+  chargerSequences();
+}
+function allerParticipant() {
+  etatRole = 'participant';
+  const params = new URLSearchParams(location.search);
+  const codePre = params.get('seq');
+  afficherEcran('ecran-join-participant');
+  if (codePre) document.getElementById('input-code-session').value = codePre;
+}
+
+// ---------------- ANIMATEUR : LISTE SEQUENCES ----------------
+async function chargerSequences() {
+  const res = await fetch('/facilitation/api/sequences');
+  const seqs = await res.json();
+  const container = document.getElementById('liste-sequences');
+  container.innerHTML = '';
+  if (!seqs.length) { container.innerHTML = '<p style="color:#6c757d;">Aucune séquence pour le moment.</p>'; return; }
+  seqs.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'carte';
+    div.innerHTML = `
+      <div class="ligne-seq">
+        <div>
+          <strong>${escHtml(s.nom)}</strong> ${s.archived ? '<span class="badge badge-archivee">Archivée</span>' : ''}
+          <div style="font-size:13px; color:#6c757d;">${escHtml(s.public||'')} • ${escHtml(s.lieu||'')} • ${s.nbEtapes} étape(s)</div>
+        </div>
+        <div>
+          <button class="btn btn-petit" onclick="ouvrirEdition('${s.id}')">✏ Éditer</button>
+          <button class="btn btn-petit btn-vert" onclick="dupliquerSequence('${s.id}')">⧉ Dupliquer</button>
+          <button class="btn btn-petit btn-orange" onclick="archiverSequence('${s.id}')">${s.archived ? '♻ Désarchiver' : '📦 Archiver'}</button>
+          <button class="btn btn-petit btn-rouge" onclick="supprimerSequence('${s.id}')">🗑 Supprimer</button>
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+async function creerSequence() {
+  const res = await fetch('/facilitation/api/sequences', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nom: 'Nouvelle séquence' }) });
+  const s = await res.json();
+  ouvrirEdition(s.id);
+}
+async function dupliquerSequence(id) { await fetch(`/facilitation/api/sequences/${id}/dupliquer`, { method: 'POST' }); chargerSequences(); }
+async function archiverSequence(id) { await fetch(`/facilitation/api/sequences/${id}/archiver`, { method: 'POST' }); chargerSequences(); }
+async function supprimerSequence(id) {
+  if (!confirm('Supprimer définitivement cette séquence ?')) return;
+  await fetch(`/facilitation/api/sequences/${id}`, { method: 'DELETE' }); chargerSequences();
+}
+
+// ---------------- ANIMATEUR : CONFIG PUBLICS / LIEUX ----------------
+let configActuelle = { publics: [], lieux: [] };
+async function chargerConfig() {
+  const res = await fetch('/facilitation/api/config');
+  configActuelle = await res.json();
+  renderConfigListe('liste-publics', configActuelle.publics, 'publics');
+  renderConfigListe('liste-lieux', configActuelle.lieux, 'lieux');
+}
+function renderConfigListe(elId, arr, cle) {
+  const el = document.getElementById(elId);
+  el.innerHTML = arr.map((v,i) => `<span class="badge" style="margin:3px; display:inline-flex; align-items:center; gap:6px;">${escHtml(v)} <span style="cursor:pointer;color:#dc3545;" onclick="retirerConfig('${cle}', ${i})">✕</span></span>`).join(' ');
+}
+async function ajouterPublic() {
+  const v = document.getElementById('nouveau-public').value.trim();
+  if (!v) return;
+  configActuelle.publics.push(v);
+  await sauverConfig();
+  document.getElementById('nouveau-public').value = '';
+}
+async function ajouterLieu() {
+  const v = document.getElementById('nouveau-lieu').value.trim();
+  if (!v) return;
+  configActuelle.lieux.push(v);
+  await sauverConfig();
+  document.getElementById('nouveau-lieu').value = '';
+}
+async function retirerConfig(cle, index) { configActuelle[cle].splice(index, 1); await sauverConfig(); }
+async function sauverConfig() {
+  const res = await fetch('/facilitation/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(configActuelle) });
+  configActuelle = await res.json();
+  renderConfigListe('liste-publics', configActuelle.publics, 'publics');
+  renderConfigListe('liste-lieux', configActuelle.lieux, 'lieux');
+}
+function ouvrirConfig() { afficherEcran('ecran-config'); chargerConfig(); }
+
+// ---------------- ANIMATEUR : EDITION SEQUENCE ----------------
+async function ouvrirEdition(id) {
+  await chargerConfig();
+  const res = await fetch(`/facilitation/api/sequences/${id}`);
+  sequenceCourante = await res.json();
+  sequenceIdCourante = id;
+  document.getElementById('seq-nom').value = sequenceCourante.nom || '';
+  document.getElementById('seq-descriptif').value = sequenceCourante.descriptif || '';
+  document.getElementById('seq-heure').value = sequenceCourante.heureDemarrage || '';
+  document.getElementById('seq-email-to').value = sequenceCourante.emailTo || '';
+  const selPublic = document.getElementById('seq-public');
+  selPublic.innerHTML = '<option value="">--</option>' + configActuelle.publics.map(p => `<option value="${escAttr(p)}">${escHtml(p)}</option>`).join('');
+  selPublic.value = sequenceCourante.public || '';
+  const selLieu = document.getElementById('seq-lieu');
+  selLieu.innerHTML = '<option value="">--</option>' + configActuelle.lieux.map(l => `<option value="${escAttr(l)}">${escHtml(l)}</option>`).join('');
+  selLieu.value = sequenceCourante.lieu || '';
+  renderGroupes();
+  renderEtapes();
+  afficherEcran('ecran-edition-sequence');
+}
+async function enregistrerInfosSequence() {
+  const body = {
+    nom: document.getElementById('seq-nom').value,
+    descriptif: document.getElementById('seq-descriptif').value,
+    public: document.getElementById('seq-public').value,
+    lieu: document.getElementById('seq-lieu').value,
+    heureDemarrage: document.getElementById('seq-heure').value,
+    emailTo: document.getElementById('seq-email-to').value
+  };
+  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  sequenceCourante = await res.json();
+  alert('Informations enregistrées ✔');
+}
+
+// --- Groupes ---
+function renderGroupes() {
+  const el = document.getElementById('liste-groupes');
+  el.innerHTML = (sequenceCourante.groupes || []).map(g => `
+    <span class="groupe-chip" style="background:${g.couleur}">${escHtml(g.nom)}
+      <span style="cursor:pointer;" onclick="supprimerGroupe('${g.id}')">✕</span>
+    </span>`).join(' ') || '<p style="color:#6c757d; font-size:13px;">Aucun groupe défini.</p>';
+}
+async function ajouterGroupe() {
+  const nom = document.getElementById('nouveau-groupe-nom').value.trim();
+  const couleur = document.getElementById('nouveau-groupe-couleur').value;
+  if (!nom) return;
+  sequenceCourante.groupes = sequenceCourante.groupes || [];
+  sequenceCourante.groupes.push({ id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), nom, couleur });
+  await sauverGroupesEtapes();
+  document.getElementById('nouveau-groupe-nom').value = '';
+  renderGroupes();
+}
+async function supprimerGroupe(id) {
+  sequenceCourante.groupes = sequenceCourante.groupes.filter(g => g.id !== id);
+  await sauverGroupesEtapes();
+  renderGroupes();
+}
+
+// --- Etapes ---
+function renderEtapes() {
+  const el = document.getElementById('liste-etapes');
+  const etapes = sequenceCourante.etapes || [];
+  if (!etapes.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Aucune étape. Ajoutez-en une ci-dessous.</p>'; return; }
+  const labels = { individuel: 'Travail individuel', mise_en_commun: 'Mise en commun', temps_libre: 'Temps libre' };
+  el.innerHTML = etapes.map((e, i) => `
+    <div class="etape-item">
+      <div class="ligne-seq">
+        <div><strong>${i+1}. ${escHtml(e.titre)}</strong> <span class="type-badge type-${e.type}">${labels[e.type]}</span> — ${e.duree/60} min</div>
+        <div>
+          <button class="btn btn-petit" onclick="ouvrirFormEtape('${e.id}')">✏</button>
+          <button class="btn btn-petit btn-vert" onclick="dupliquerEtape('${e.id}')">⧉</button>
+          <button class="btn btn-petit btn-rouge" onclick="supprimerEtape('${e.id}')">🗑</button>
+        </div>
+      </div>
+      <div style="font-size:12px; color:#6c757d; margin-top:4px; white-space:pre-wrap;">${escHtml(e.consignes||'')}</div>
+    </div>`).join('');
+}
+function ouvrirFormEtape(id) {
+  document.getElementById('form-etape').classList.remove('hidden');
+  const selSource = document.getElementById('etape-source');
+  const etapesIndividuelles = (sequenceCourante.etapes || []).filter(e => e.type === 'individuel');
+  selSource.innerHTML = etapesIndividuelles.map(e => `<option value="${e.id}">${escHtml(e.titre)}</option>`).join('') || '<option value="">Aucune étape individuelle disponible</option>';
+  if (id) {
+    const e = sequenceCourante.etapes.find(x => x.id === id);
+    document.getElementById('form-etape-titre').textContent = 'Modifier l\'étape';
+    document.getElementById('etape-id').value = e.id;
+    document.getElementById('etape-type').value = e.type;
+    document.getElementById('etape-titre').value = e.titre;
+    document.getElementById('etape-duree').value = Math.round(e.duree / 60);
+    document.getElementById('etape-consignes').value = e.consignes || '';
+    if (e.sourceEtapeId) selSource.value = e.sourceEtapeId;
+  } else {
+    document.getElementById('form-etape-titre').textContent = 'Nouvelle étape';
+    document.getElementById('etape-id').value = '';
+    document.getElementById('etape-type').value = 'individuel';
+    document.getElementById('etape-titre').value = '';
+    document.getElementById('etape-duree').value = 10;
+    document.getElementById('etape-consignes').value = '';
+  }
+  majFormEtape();
+}
+function majFormEtape() {
+  const type = document.getElementById('etape-type').value;
+  document.getElementById('etape-source-wrap').classList.toggle('hidden', type !== 'mise_en_commun');
+}
+function fermerFormEtape() { document.getElementById('form-etape').classList.add('hidden'); }
+async function validerEtape() {
+  const id = document.getElementById('etape-id').value;
+  const nouvelleEtape = {
+    id: id || undefined,
+    type: document.getElementById('etape-type').value,
+    titre: document.getElementById('etape-titre').value.trim() || 'Étape sans titre',
+    duree: Math.max(1, parseInt(document.getElementById('etape-duree').value || '10', 10)) * 60,
+    consignes: document.getElementById('etape-consignes').value.slice(0, 300),
+    sourceEtapeId: document.getElementById('etape-type').value === 'mise_en_commun' ? (document.getElementById('etape-source').value || null) : null
+  };
+  sequenceCourante.etapes = sequenceCourante.etapes || [];
+  if (id) {
+    const idx = sequenceCourante.etapes.findIndex(e => e.id === id);
+    sequenceCourante.etapes[idx] = { ...sequenceCourante.etapes[idx], ...nouvelleEtape, id };
+  } else {
+    nouvelleEtape.id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    sequenceCourante.etapes.push(nouvelleEtape);
+  }
+  await sauverGroupesEtapes();
+  fermerFormEtape();
+  renderEtapes();
+}
+async function dupliquerEtape(id) {
+  const e = sequenceCourante.etapes.find(x => x.id === id);
+  const copie = { ...e, id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), titre: e.titre + ' (copie)' };
+  sequenceCourante.etapes.push(copie);
+  await sauverGroupesEtapes();
+  renderEtapes();
+}
+async function supprimerEtape(id) {
+  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}/impact/${id}`);
+  const impact = await res.json();
+  if (impact.impact) {
+    const ok = confirm(`⚠️ Cette étape est utilisée comme source par : ${impact.etapesLiees.join(', ')}.\nLa supprimer cassera ce lien. Continuer ?`);
+    if (!ok) return;
+  } else {
+    if (!confirm('Supprimer cette étape ?')) return;
+  }
+  sequenceCourante.etapes = sequenceCourante.etapes.filter(e => e.id !== id);
+  await sauverGroupesEtapes();
+  renderEtapes();
+}
+async function sauverGroupesEtapes() {
+  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ groupes: sequenceCourante.groupes || [], etapes: sequenceCourante.etapes || [] })
+  });
+  sequenceCourante = await res.json();
+}
+
+// ---------------- LANCEMENT SESSION (ANIMATEUR) ----------------
+function lancerSession() {
+  connecterSocket();
+  socket.emit('admin:join', { sequenceId: sequenceIdCourante });
+  afficherEcran('ecran-session-admin');
+  document.getElementById('a-nom-seq').textContent = sequenceCourante.nom;
+  document.getElementById('a-code-session').textContent = sequenceIdCourante;
+  document.getElementById('a-lien-telecharger').href = `/facilitation/api/sequences/${sequenceIdCourante}/export.csv`;
+}
+function quitterSession() {
+  if (socket) socket.disconnect();
+  socket = null;
+  ouvrirEdition(sequenceIdCourante);
+}
+
+// ---------------- SOCKET.IO COMMUN ----------------
+function connecterSocket() {
+  if (socket) socket.disconnect();
+  socket = io('/facilitation');
+
+  socket.on('sequence:donnees', (s) => {
+    sequenceCourante = s;
+    groupesMap = {}; (s.groupes || []).forEach(g => groupesMap[g.id] = g);
+    renderChronologie();
+  });
+
+  socket.on('etat:maj', (etat) => {
+    etapeCouranteId = etat.currentEtapeId;
+    if (etatRole === 'admin') {
+      document.getElementById('a-connectes').innerHTML = `👥 Total connectés : <strong>${etat.connectes.total}</strong>` +
+        Object.entries(etat.connectes.parGroupe).map(([gid,n]) => {
+          const g = groupesMap[gid];
+          return ` &nbsp; <span class="groupe-chip" style="background:${g?g.couleur:'#6c757d'}">${g?g.nom:'Sans groupe'} : ${n}</span>`;
+        }).join('');
+      currentParticipantsCache = etat.participants;
+      renderParticipants(etat.participants);
+      renderChronologie();
+      if (etapeCouranteId) {
+        document.getElementById('a-non-participants').textContent = etat.nonParticipants.length ? `⚠️ N'ont pas encore saisi : ${etat.nonParticipants.join(', ')}` : '✅ Tout le monde a saisi';
+      }
+      majProgression('a-progression', 'a-progression-txt');
+    } else if (etatRole === 'participant') {
+      document.getElementById('p-connectes').textContent = `👥 ${etat.connectes.total} connecté(s)`;
+      majProgression('p-progression', 'p-progression-txt');
+      const moi = etat.participants.find(p => p.id === participantId);
+      if (moi && moi.groupId && groupesMap[moi.groupId]) {
+        document.getElementById('p-groupe-badge').textContent = groupesMap[moi.groupId].nom;
+        document.getElementById('p-groupe-badge').style.background = groupesMap[moi.groupId].couleur;
+        document.getElementById('p-groupe-badge').style.color = '#fff';
+      }
+    }
+  });
+
+  socket.on('etape:courante', ({ etape, results }) => {
+    etapeCouranteId = etape.id;
+    etapeCouranteType = etape.type;
+    if (etatRole === 'admin') {
+      document.getElementById('a-etape-vide').classList.add('hidden');
+      document.getElementById('a-etape-active').classList.remove('hidden');
+      document.getElementById('a-titre-etape').textContent = etape.titre;
+      document.getElementById('a-consignes-etape').textContent = etape.consignes;
+      renderMiseEnCommunAdmin(etape, results);
+    } else {
+      document.getElementById('p-titre-etape').textContent = etape.titre;
+      document.getElementById('p-consignes-etape').textContent = etape.consignes;
+      document.getElementById('p-zone-individuel').classList.toggle('hidden', etape.type !== 'individuel');
+      document.getElementById('p-zone-mise-en-commun').classList.toggle('hidden', etape.type !== 'mise_en_commun');
+      document.getElementById('p-zone-temps-libre').classList.toggle('hidden', etape.type !== 'temps_libre');
+      document.getElementById('p-saisie-texte').value = '';
+      document.getElementById('p-saisie-statut').textContent = '';
+      if (etape.type === 'mise_en_commun') renderRetenuesParticipant(results.retenues || []);
+    }
+  });
+
+  socket.on('timer:tick', ({ timeLeft, total, alerte }) => {
+    const txt = formatTemps(timeLeft);
+    ['timer-affichage', 'timer-affichage-admin'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = txt;
+      el.classList.remove('t-orange', 't-rouge');
+      if (timeLeft <= 120) el.classList.add('t-rouge');
+      else if (timeLeft <= 300) el.classList.add('t-orange');
+      if (alerte) { el.classList.add('alerte'); setTimeout(() => el.classList.remove('alerte'), 600); }
+    });
+  });
+
+  socket.on('timer:fin', () => {
+    ['timer-affichage', 'timer-affichage-admin'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '⏰ Terminé'; });
+  });
+
+  socket.on('groupes:maj', ({ participants }) => { if (etatRole === 'admin') renderParticipants(Object.entries(participants).map(([id,p]) => ({ id, ...p }))); });
+
+  socket.on('retenues:maj', ({ etapeId, retenues }) => {
+    if (etatRole === 'admin') renderRetenuesAdmin(etapeId, retenues);
+    else renderRetenuesParticipant(retenues);
+  });
+
+  socket.on('miseEnCommun:maj', ({ etapeId }) => { if (etatRole === 'admin' && etapeCouranteId === etapeId) refreshMiseEnCommunAdmin(); });
+
+  socket.on('participant:bienvenue', ({ participantId: pid, sequence }) => {
+    participantId = pid;
+    localStorage.setItem('facilitation_participant_id', pid);
+    sequenceCourante = sequence;
+    groupesMap = {}; (sequence.groupes || []).forEach(g => groupesMap[g.id] = g);
+    document.getElementById('p-nom-seq').textContent = sequence.nom;
+    afficherEcran('ecran-session-participant');
+  });
+
+  socket.on('erreur', (msg) => alert('Erreur : ' + msg));
+}
+
+function formatTemps(sec) {
+  sec = Math.max(0, sec);
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function majProgression(barId, txtId) {
+  if (!sequenceCourante || !sequenceCourante.etapes || !sequenceCourante.etapes.length) return;
+  const idx = sequenceCourante.etapes.findIndex(e => e.id === etapeCouranteId);
+  const total = sequenceCourante.etapes.length;
+  const pct = total ? Math.round(((idx>=0?idx+1:0) / total) * 100) : 0;
+  document.getElementById(barId).style.width = pct + '%';
+  document.getElementById(txtId).textContent = `Étape ${idx>=0?idx+1:0} / ${total}`;
+}
+
+// --- Chronologie (admin) ---
+function renderChronologie() {
+  if (!sequenceCourante) return;
+  const el = document.getElementById('a-chronologie');
+  if (!el) return;
+  let heure = sequenceCourante.heureDemarrage ? parseHeure(sequenceCourante.heureDemarrage) : null;
+  const idxCourante = sequenceCourante.etapes.findIndex(e => e.id === etapeCouranteId);
+  el.innerHTML = (sequenceCourante.etapes || []).map((e, i) => {
+    let horaire = '';
+    if (heure !== null) {
+      const debut = heure;
+      heure += e.duree / 60;
+      horaire = `${formatHeure(debut)} → ${formatHeure(heure)}`;
+    }
+    const cls = i === idxCourante ? 'en-cours' : (i < idxCourante ? 'fait' : '');
+    return `<div class="chrono-etape ${cls}">
+      <span>${i+1}. ${escHtml(e.titre)} <span style="color:#6c757d; font-size:12px;">(${e.duree/60} min)</span> ${horaire?`<span style="color:#6c757d; font-size:12px;"> — ${horaire}</span>`:''}</span>
+      <button class="btn btn-petit ${i===idxCourante?'btn-orange':'btn-vert'}" onclick="demarrerEtape('${e.id}')">${i===idxCourante?'🔁 Relancer':'▶ Démarrer'}</button>
+    </div>`;
+  }).join('');
+}
+function parseHeure(hhmm) { const [h,m] = hhmm.split(':').map(Number); return h*60+m; }
+function formatHeure(minTotal) { const h = Math.floor(minTotal/60)%24, m = Math.round(minTotal%60); return `${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`; }
+
+function demarrerEtape(etapeId) {
+  const etape = sequenceCourante.etapes.find(e => e.id === etapeId);
+  socket.emit('admin:demarrerEtape', { etapeId, duree: etape.duree });
+}
+function controleTimer(action) { socket.emit('admin:timer', { action }); }
+function modifierTimer() {
+  const v = prompt('Nouvelle durée restante (en minutes) :');
+  if (!v) return;
+  socket.emit('admin:timer', { action: 'modifier', seconds: Math.round(parseFloat(v) * 60) });
+}
+
+// --- Groupes / participants (admin) ---
+let currentParticipantsCache = [];
+function renderParticipants(participants) {
+  currentParticipantsCache = participants;
+  const el = document.getElementById('a-participants-liste');
+  const legende = document.getElementById('a-groupes-legende');
+  legende.innerHTML = (sequenceCourante.groupes||[]).map(g => `<span class="groupe-chip" style="background:${g.couleur}" onclick="affecterAuGroupe('${g.id}')">${escHtml(g.nom)}</span>`).join(' ') +
+    ` <span class="groupe-chip" style="background:#6c757d;" onclick="affecterAuGroupe(null)">Sans groupe</span>`;
+  el.innerHTML = participants.filter(p=>p.connected).map(p => {
+    const g = p.groupId ? groupesMap[p.groupId] : null;
+    return `<span class="participant-chip" style="${g?`border:2px solid ${g.couleur};`:''} ${selectionParticipantPourGroupe===p.id?'outline:2px solid #007bff;':''}" onclick="selectionnerParticipant('${p.id}')">${escHtml(p.pseudo)}${g?` (${escHtml(g.nom)})`:''}</span>`;
+  }).join('');
+}
+function selectionnerParticipant(pid) { selectionParticipantPourGroupe = pid; renderParticipants(currentParticipantsCache); }
+function affecterAuGroupe(groupId) {
+  if (!selectionParticipantPourGroupe) { alert('Sélectionnez d\'abord un participant.'); return; }
+  socket.emit('admin:groupes:assigner', { participantId: selectionParticipantPourGroupe, groupId });
+  selectionParticipantPourGroupe = null;
+}
+function autoAssignerGroupes() { socket.emit('admin:groupes:autoAssign'); }
+
+// --- Mise en commun (admin) ---
+function renderMiseEnCommunAdmin(etape, results) {
+  const panel = document.getElementById('a-mise-en-commun-contenu');
+  if (etape.type !== 'mise_en_commun') { panel.innerHTML = '<p style="color:#6c757d;">L\'étape en cours n\'est pas une mise en commun.</p>'; return; }
+  const source = sequenceCourante.etapes.find(e => e.id === etape.sourceEtapeId);
+  let html = '';
+  if (source) {
+    html += `<h4>Saisies de l'étape "${escHtml(source.titre)}"</h4><div id="a-saisies-source"></div>`;
+  }
+  html += `<h4 style="margin-top:14px;">✅ Idées retenues</h4>
+    <div style="display:flex; gap:6px; margin-bottom:8px;">
+      <input type="text" id="a-nouvelle-idee" placeholder="Ajouter une idée...">
+      <button class="btn btn-petit btn-vert" onclick="ajouterIdee('${etape.id}')">Ajouter</button>
+    </div>
+    <div id="a-retenues-liste"></div>`;
+  panel.innerHTML = html;
+  refreshMiseEnCommunAdmin();
+}
+async function refreshMiseEnCommunAdmin() {
+  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`);
+  const s = await res.json();
+  sequenceCourante.results = s.results;
+  const r = s.results[etapeCouranteId] || { submissions: {}, retenues: [] };
+  const zoneSaisies = document.getElementById('a-saisies-source');
+  if (zoneSaisies) {
+    zoneSaisies.innerHTML = Object.values(r.submissions || {}).map(sub => {
+      const g = sub.groupId ? groupesMap[sub.groupId] : null;
+      return `<div class="retenue-item"><span>${g?`<span class="groupe-chip" style="background:${g.couleur}">${escHtml(g.nom)}</span> `:''}<strong>${escHtml(sub.pseudo)}</strong> : ${escHtml(sub.text)}</span>
+        <button class="btn btn-petit btn-vert" onclick="retenirIdee('${escAttr(sub.text)}','${g?escAttr(g.nom):''}')">✓ Retenir</button></div>`;
+    }).join('') || '<p style="color:#6c757d; font-size:13px;">Aucune saisie pour le moment.</p>';
+  }
+  renderRetenuesAdmin(etapeCouranteId, r.retenues || []);
+}
+function ajouterIdee(etapeId) {
+  const v = document.getElementById('a-nouvelle-idee').value.trim();
+  if (!v) return;
+  socket.emit('admin:miseEnCommun:ajouter', { etapeId, text: v });
+  document.getElementById('a-nouvelle-idee').value = '';
+}
+function retenirIdee(text, groupeNom) { socket.emit('admin:miseEnCommun:retenir', { etapeId: etapeCouranteId, text, groupeNom }); }
+function renderRetenuesAdmin(etapeId, retenues) {
+  const el = document.getElementById('a-retenues-liste');
+  if (!el) return;
+  el.innerHTML = (retenues||[]).map((it) => `
+    <div class="retenue-item">
+      <span>${it.groupeNom?`<span class="groupe-chip" style="background:#6c757d;">${escHtml(it.groupeNom)}</span> `:''}${escHtml(it.text)}</span>
+      <span>
+        <button class="btn btn-petit" onclick="reordonnerIdee('${it.id}','up')">↑</button>
+        <button class="btn btn-petit" onclick="reordonnerIdee('${it.id}','down')">↓</button>
+        <button class="btn btn-petit btn-rouge" onclick="supprimerIdee('${it.id}')">✕</button>
+      </span>
+    </div>`).join('') || '<p style="color:#6c757d; font-size:13px;">Aucune idée retenue.</p>';
+}
+function reordonnerIdee(itemId, direction) { socket.emit('admin:miseEnCommun:reordonner', { etapeId: etapeCouranteId, itemId, direction }); }
+function supprimerIdee(itemId) { socket.emit('admin:miseEnCommun:supprimer', { etapeId: etapeCouranteId, itemId }); }
+
+function renderRetenuesParticipant(retenues) {
+  const el = document.getElementById('p-liste-retenues');
+  el.innerHTML = (retenues||[]).map(it => `<div class="retenue-item"><span>${it.groupeNom?`<span class="groupe-chip" style="background:#6c757d;">${escHtml(it.groupeNom)}</span> `:''}${escHtml(it.text)}</span></div>`).join('') || '<p style="color:#6c757d; font-size:13px;">Rien pour le moment.</p>';
+}
+
+// ---------------- PARTICIPANT ----------------
+function rejoindreSession() {
+  const code = document.getElementById('input-code-session').value.trim();
+  const pseudo = document.getElementById('input-pseudo-participant').value.trim();
+  if (!code || !pseudo) { alert('Merci de renseigner le code de session et votre pseudo.'); return; }
+  sequenceIdCourante = code;
+  etatRole = 'participant';
+  connecterSocket();
+  socket.emit('participant:join', { sequenceId: code, pseudo, participantId });
+}
+function envoyerSaisie() {
+  const texte = document.getElementById('p-saisie-texte').value.trim();
+  if (!texte) return;
+  socket.emit('participant:saisie', { etapeId: etapeCouranteId, text: texte });
+  document.getElementById('p-saisie-statut').textContent = '✔ Envoyé';
+}
+
+// ---------------- EMAIL ----------------
+async function envoyerParEmail() {
+  document.getElementById('a-email-statut').textContent = 'Envoi en cours...';
+  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}/envoyer-email`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+  const data = await res.json();
+  document.getElementById('a-email-statut').textContent = data.ok ? '✔ Email envoyé' : ('❌ ' + (data.error || 'Erreur'));
+}
+
+// ---------------- UTILS ----------------
+function escHtml(s) { return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s) { return escHtml(s).replace(/`/g, '&#96;'); }
+</script>
+</body>
+</html>
