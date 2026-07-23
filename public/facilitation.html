@@ -39,15 +39,25 @@
   .t-rouge { color:#dc3545 !important; }
   .connectes-box { background:#eef2f7; border-radius:8px; padding:10px 14px; display:flex; gap:18px; flex-wrap:wrap; font-size:14px; }
   .groupe-chip { display:inline-block; padding:3px 10px; border-radius:14px; color:#fff; font-size:12px; font-weight:600; margin:2px; cursor:pointer; }
-  .participant-chip { display:inline-block; padding:4px 10px; border-radius:14px; background:#e9ecef; margin:3px; font-size:13px; cursor:pointer; }
+  .participant-chip { display:inline-block; padding:4px 10px; border-radius:14px; background:#e9ecef; margin:3px; font-size:13px; cursor:pointer; border:2px solid transparent; }
+  .participant-chip.selectionne { border-color:#007bff; }
   .chrono-etape { display:flex; justify-content:space-between; padding:8px 10px; border-left:4px solid #ccc; margin-bottom:6px; background:#fff; border-radius:0 6px 6px 0; }
   .chrono-etape.en-cours { border-left-color:#28a745; background:#eafbef; font-weight:600; }
   .chrono-etape.fait { border-left-color:#6c757d; opacity:0.6; }
-  .retenue-item { display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid #e2e5e9; border-radius:6px; padding:8px 10px; margin-bottom:6px; }
+  .retenue-item, .idee-item { display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid #e2e5e9; border-radius:6px; padding:8px 10px; margin-bottom:6px; gap:8px; }
+  .idee-item input[type=text] { margin:0; }
   .progression-bar-bg { background:#e9ecef; border-radius:8px; height:14px; width:100%; overflow:hidden; }
   .progression-bar { background:#28a745; height:100%; transition:width 0.4s ease; }
-  textarea { min-height: 70px; resize: vertical; }
+  textarea { min-height: 60px; resize: vertical; }
   .msg-info { background:#fff3cd; border:1px solid #ffe69c; padding:10px 14px; border-radius:6px; font-size:14px; margin-bottom:12px; }
+  .groupe-bloc { border-radius:8px; padding:10px; margin-bottom:8px; background:#fafbfc; border-left:5px solid #ccc; }
+  .groupe-bloc h4 { margin:0 0 6px 0; font-size:14px; }
+  .qr-box { text-align:center; }
+  .qr-box img { border:1px solid #e2e5e9; border-radius:8px; }
+  .lien-copie { display:flex; gap:6px; align-items:center; margin-top:8px; }
+  .lien-copie input { margin:0; }
+  .p-entete { display:flex; justify-content:space-between; align-items:center; }
+  .p-entete .nom-participant { font-size: 1.3em; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -77,10 +87,11 @@
   <!-- ============ PARTICIPANT : SESSION EN COURS ============ -->
   <div id="ecran-session-participant" class="hidden">
     <div class="carte">
-      <div class="ligne-seq">
-        <div><strong id="p-nom-seq"></strong> <span class="badge" id="p-groupe-badge"></span></div>
+      <div class="p-entete">
+        <div><span class="nom-participant" id="p-mon-nom"></span> <span class="badge" id="p-groupe-badge">Sans groupe</span></div>
         <div class="connectes-box"><span id="p-connectes"></span></div>
       </div>
+      <div style="font-size:13px; color:#6c757d; margin-top:4px;" id="p-nom-seq"></div>
       <div class="progression-bar-bg" style="margin-top:8px;"><div class="progression-bar" id="p-progression" style="width:0%;"></div></div>
       <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="p-progression-txt"></div>
     </div>
@@ -93,10 +104,12 @@
       </div>
 
       <div id="p-zone-individuel" class="hidden">
-        <label>Votre saisie</label>
-        <textarea id="p-saisie-texte" placeholder="Écrivez vos idées ici..."></textarea>
-        <button class="btn btn-vert" onclick="envoyerSaisie()">Envoyer</button>
-        <span id="p-saisie-statut" style="margin-left:10px; color:#28a745; font-weight:600;"></span>
+        <h3>Vos idées</h3>
+        <div id="p-mes-idees"></div>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="p-nouvelle-idee" placeholder="Ajouter une idée...">
+          <button class="btn btn-vert" onclick="ajouterMonIdee()">➕ Ajouter</button>
+        </div>
       </div>
 
       <div id="p-zone-mise-en-commun" class="hidden">
@@ -160,7 +173,7 @@
       <div class="grille2">
         <div>
           <label>Heure de démarrage prévue</label>
-          <input type="time" id="seq-heure">
+          <input type="time" id="seq-heure" onchange="renderEtapes()">
         </div>
         <div>
           <label>Email destinataire (extraction)</label>
@@ -182,6 +195,7 @@
 
     <div class="carte">
       <h3>📋 Étapes</h3>
+      <p style="font-size:12px; color:#6c757d;">Horaires calculés à partir de l'heure de démarrage prévue ci-dessus (si renseignée).</p>
       <div id="liste-etapes"></div>
       <button class="btn btn-vert" onclick="ouvrirFormEtape()">➕ Ajouter une étape</button>
     </div>
@@ -220,13 +234,28 @@
     <div class="carte">
       <div class="ligne-seq">
         <h2 id="a-nom-seq" style="margin:0;"></h2>
-        <div>
-          <span class="badge">Code session : <strong id="a-code-session"></strong></span>
-        </div>
+        <div><span class="badge">Code session : <strong id="a-code-session"></strong></span></div>
       </div>
       <div class="connectes-box" id="a-connectes" style="margin-top:10px;"></div>
       <div class="progression-bar-bg" style="margin-top:8px;"><div class="progression-bar" id="a-progression" style="width:0%;"></div></div>
       <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="a-progression-txt"></div>
+    </div>
+
+    <div class="carte">
+      <h3>📱 Inviter des participants</h3>
+      <div class="grille2">
+        <div class="qr-box">
+          <img id="a-qrcode" width="160" height="160" alt="QR code de la session">
+          <div style="font-size:12px; color:#6c757d;">À scanner pour rejoindre</div>
+        </div>
+        <div>
+          <label>Lien direct à partager</label>
+          <div class="lien-copie">
+            <input type="text" id="a-lien-participant" readonly>
+            <button class="btn btn-petit" onclick="copierLienParticipant()">📋 Copier</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="grille2">
@@ -244,15 +273,21 @@
             <button class="btn btn-petit" onclick="modifierTimer()">✏ Modifier durée</button>
           </div>
           <div id="a-non-participants" style="font-size:12px; color:#dc3545; margin-top:8px;"></div>
+          <div id="a-saisies-individuel-wrap" class="hidden" style="margin-top:10px;">
+            <h4 style="margin-bottom:4px;">📝 Saisies en direct</h4>
+            <div id="a-saisies-individuel"></div>
+          </div>
         </div>
       </div>
 
       <div class="carte">
         <h3>👥 Groupes</h3>
-        <button class="btn btn-petit" onclick="autoAssignerGroupes()">⚖️ Répartir automatiquement</button>
+        <button class="btn btn-petit" onclick="autoAssignerGroupes()">⚖️ Répartir les non-affectés</button>
         <div id="a-groupes-legende" style="margin:8px 0;"></div>
         <div style="font-size:13px; color:#555;">Cliquez sur un participant puis sur un groupe pour l'affecter :</div>
-        <div id="a-participants-liste" style="margin-top:6px;"></div>
+        <div id="a-participants-liste" style="margin-top:6px; margin-bottom:12px;"></div>
+        <h4 style="margin-bottom:6px;">Composition des groupes</h4>
+        <div id="a-composition-groupes"></div>
       </div>
     </div>
 
@@ -280,14 +315,17 @@
 
 <script>
 let socket = null;
-let etatRole = null; // 'admin' | 'participant'
-let sequenceCourante = null; // objet séquence complet (admin)
+let etatRole = null;
+let sequenceCourante = null;
 let sequenceIdCourante = null;
 let etapeCouranteId = null;
-let participantId = localStorage.getItem('facilitation_participant_id') || null;
+// sessionStorage : identifiant propre à cet onglet/navigateur (évite que 2 participants
+// ouverts sur le même appareil ne partagent la même identité, contrairement à localStorage)
+let participantId = sessionStorage.getItem('facilitation_participant_id') || null;
+let monPseudo = '';
 let groupesMap = {};
 let selectionParticipantPourGroupe = null;
-let etapeCouranteType = null;
+let currentParticipantsCache = [];
 
 function afficherEcran(id) {
   document.querySelectorAll('#ecran-role, #ecran-join-participant, #ecran-session-participant, #ecran-liste-sequences, #ecran-config, #ecran-edition-sequence, #ecran-session-admin')
@@ -296,12 +334,7 @@ function afficherEcran(id) {
 }
 function retourRole() { afficherEcran('ecran-role'); }
 
-// ---------------- NAVIGATION DE BASE ----------------
-function allerAnimateur() {
-  etatRole = 'admin';
-  afficherEcran('ecran-liste-sequences');
-  chargerSequences();
-}
+function allerAnimateur() { etatRole = 'admin'; afficherEcran('ecran-liste-sequences'); chargerSequences(); }
 function allerParticipant() {
   etatRole = 'participant';
   const params = new URLSearchParams(location.search);
@@ -309,6 +342,14 @@ function allerParticipant() {
   afficherEcran('ecran-join-participant');
   if (codePre) document.getElementById('input-code-session').value = codePre;
 }
+
+// Auto-détection d'un lien d'invitation (QR code / lien copié) au chargement de la page
+(function detecterLienInvitation() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('role') === 'participant' && params.get('seq')) {
+    window.addEventListener('DOMContentLoaded', () => allerParticipant());
+  }
+})();
 
 // ---------------- ANIMATEUR : LISTE SEQUENCES ----------------
 async function chargerSequences() {
@@ -327,6 +368,7 @@ async function chargerSequences() {
           <div style="font-size:13px; color:#6c757d;">${escHtml(s.public||'')} • ${escHtml(s.lieu||'')} • ${s.nbEtapes} étape(s)</div>
         </div>
         <div>
+          <button class="btn btn-petit btn-vert" onclick="lancerDepuisListe('${s.id}')">🚀 Lancer</button>
           <button class="btn btn-petit" onclick="ouvrirEdition('${s.id}')">✏ Éditer</button>
           <button class="btn btn-petit btn-vert" onclick="dupliquerSequence('${s.id}')">⧉ Dupliquer</button>
           <button class="btn btn-petit btn-orange" onclick="archiverSequence('${s.id}')">${s.archived ? '♻ Désarchiver' : '📦 Archiver'}</button>
@@ -346,6 +388,12 @@ async function archiverSequence(id) { await fetch(`/facilitation/api/sequences/$
 async function supprimerSequence(id) {
   if (!confirm('Supprimer définitivement cette séquence ?')) return;
   await fetch(`/facilitation/api/sequences/${id}`, { method: 'DELETE' }); chargerSequences();
+}
+async function lancerDepuisListe(id) {
+  const res = await fetch(`/facilitation/api/sequences/${id}`);
+  sequenceCourante = await res.json();
+  sequenceIdCourante = id;
+  lancerSession();
 }
 
 // ---------------- ANIMATEUR : CONFIG PUBLICS / LIEUX ----------------
@@ -377,7 +425,7 @@ async function ajouterLieu() {
 async function retirerConfig(cle, index) { configActuelle[cle].splice(index, 1); await sauverConfig(); }
 async function sauverConfig() {
   const res = await fetch('/facilitation/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(configActuelle) });
-  configActuelle = await res.json();
+  configActuelle = await res.json(); // revient déjà trié par ordre alphabétique
   renderConfigListe('liste-publics', configActuelle.publics, 'publics');
   renderConfigListe('liste-lieux', configActuelle.lieux, 'lieux');
 }
@@ -414,10 +462,11 @@ async function enregistrerInfosSequence() {
   };
   const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
   sequenceCourante = await res.json();
+  renderEtapes();
   alert('Informations enregistrées ✔');
 }
 
-// --- Groupes ---
+// --- Groupes (édition) ---
 function renderGroupes() {
   const el = document.getElementById('liste-groupes');
   el.innerHTML = (sequenceCourante.groupes || []).map(g => `
@@ -441,24 +490,38 @@ async function supprimerGroupe(id) {
   renderGroupes();
 }
 
-// --- Etapes ---
+// --- Etapes (édition), avec horaires calculés ---
 function renderEtapes() {
   const el = document.getElementById('liste-etapes');
   const etapes = sequenceCourante.etapes || [];
   if (!etapes.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Aucune étape. Ajoutez-en une ci-dessous.</p>'; return; }
   const labels = { individuel: 'Travail individuel', mise_en_commun: 'Mise en commun', temps_libre: 'Temps libre' };
-  el.innerHTML = etapes.map((e, i) => `
+  const heureDemarrageChamp = document.getElementById('seq-heure');
+  const heureDemarrage = (heureDemarrageChamp ? heureDemarrageChamp.value : sequenceCourante.heureDemarrage) || '';
+  let heure = heureDemarrage ? parseHeure(heureDemarrage) : null;
+  el.innerHTML = etapes.map((e, i) => {
+    let horaire = '';
+    if (heure !== null) {
+      const debut = heure;
+      heure += e.duree / 60;
+      horaire = `${formatHeure(debut)} → ${formatHeure(heure)} (${e.duree/60} min)`;
+    } else {
+      horaire = `${e.duree/60} min`;
+    }
+    return `
     <div class="etape-item">
       <div class="ligne-seq">
-        <div><strong>${i+1}. ${escHtml(e.titre)}</strong> <span class="type-badge type-${e.type}">${labels[e.type]}</span> — ${e.duree/60} min</div>
+        <div><strong>${i+1}. ${escHtml(e.titre)}</strong> <span class="type-badge type-${e.type}">${labels[e.type]}</span></div>
         <div>
           <button class="btn btn-petit" onclick="ouvrirFormEtape('${e.id}')">✏</button>
           <button class="btn btn-petit btn-vert" onclick="dupliquerEtape('${e.id}')">⧉</button>
           <button class="btn btn-petit btn-rouge" onclick="supprimerEtape('${e.id}')">🗑</button>
         </div>
       </div>
+      <div style="font-size:13px; color:#007bff; font-weight:600; margin-top:4px;">🕐 ${horaire}</div>
       <div style="font-size:12px; color:#6c757d; margin-top:4px; white-space:pre-wrap;">${escHtml(e.consignes||'')}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function ouvrirFormEtape(id) {
   document.getElementById('form-etape').classList.remove('hidden');
@@ -483,6 +546,7 @@ function ouvrirFormEtape(id) {
     document.getElementById('etape-consignes').value = '';
   }
   majFormEtape();
+  document.getElementById('form-etape').scrollIntoView({ behavior: 'smooth' });
 }
 function majFormEtape() {
   const type = document.getElementById('etape-type').value;
@@ -547,6 +611,14 @@ function lancerSession() {
   document.getElementById('a-nom-seq').textContent = sequenceCourante.nom;
   document.getElementById('a-code-session').textContent = sequenceIdCourante;
   document.getElementById('a-lien-telecharger').href = `/facilitation/api/sequences/${sequenceIdCourante}/export.csv`;
+  const lienParticipant = `${location.origin}/facilitation.html?role=participant&seq=${sequenceIdCourante}`;
+  document.getElementById('a-lien-participant').value = lienParticipant;
+  document.getElementById('a-qrcode').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(lienParticipant)}`;
+}
+function copierLienParticipant() {
+  const champ = document.getElementById('a-lien-participant');
+  champ.select();
+  navigator.clipboard ? navigator.clipboard.writeText(champ.value) : document.execCommand('copy');
 }
 function quitterSession() {
   if (socket) socket.disconnect();
@@ -575,6 +647,7 @@ function connecterSocket() {
         }).join('');
       currentParticipantsCache = etat.participants;
       renderParticipants(etat.participants);
+      renderCompositionGroupes(etat.participants);
       renderChronologie();
       if (etapeCouranteId) {
         document.getElementById('a-non-participants').textContent = etat.nonParticipants.length ? `⚠️ N'ont pas encore saisi : ${etat.nonParticipants.join(', ')}` : '✅ Tout le monde a saisi';
@@ -584,22 +657,28 @@ function connecterSocket() {
       document.getElementById('p-connectes').textContent = `👥 ${etat.connectes.total} connecté(s)`;
       majProgression('p-progression', 'p-progression-txt');
       const moi = etat.participants.find(p => p.id === participantId);
+      const badge = document.getElementById('p-groupe-badge');
       if (moi && moi.groupId && groupesMap[moi.groupId]) {
-        document.getElementById('p-groupe-badge').textContent = groupesMap[moi.groupId].nom;
-        document.getElementById('p-groupe-badge').style.background = groupesMap[moi.groupId].couleur;
-        document.getElementById('p-groupe-badge').style.color = '#fff';
+        badge.textContent = groupesMap[moi.groupId].nom;
+        badge.style.background = groupesMap[moi.groupId].couleur;
+        badge.style.color = '#fff';
+      } else {
+        badge.textContent = 'Sans groupe';
+        badge.style.background = '#e9ecef';
+        badge.style.color = '#495057';
       }
     }
   });
 
   socket.on('etape:courante', ({ etape, results }) => {
     etapeCouranteId = etape.id;
-    etapeCouranteType = etape.type;
     if (etatRole === 'admin') {
       document.getElementById('a-etape-vide').classList.add('hidden');
       document.getElementById('a-etape-active').classList.remove('hidden');
       document.getElementById('a-titre-etape').textContent = etape.titre;
       document.getElementById('a-consignes-etape').textContent = etape.consignes;
+      document.getElementById('a-saisies-individuel-wrap').classList.toggle('hidden', etape.type !== 'individuel');
+      if (etape.type === 'individuel') renderSaisiesIndividuelAdmin(results.submissions || {});
       renderMiseEnCommunAdmin(etape, results);
     } else {
       document.getElementById('p-titre-etape').textContent = etape.titre;
@@ -607,9 +686,12 @@ function connecterSocket() {
       document.getElementById('p-zone-individuel').classList.toggle('hidden', etape.type !== 'individuel');
       document.getElementById('p-zone-mise-en-commun').classList.toggle('hidden', etape.type !== 'mise_en_commun');
       document.getElementById('p-zone-temps-libre').classList.toggle('hidden', etape.type !== 'temps_libre');
-      document.getElementById('p-saisie-texte').value = '';
-      document.getElementById('p-saisie-statut').textContent = '';
+      document.getElementById('p-nouvelle-idee').value = '';
       if (etape.type === 'mise_en_commun') renderRetenuesParticipant(results.retenues || []);
+      if (etape.type === 'individuel') {
+        const mine = (results.submissions && results.submissions[participantId]) || { items: [] };
+        renderMesIdees(mine.items || []);
+      }
     }
   });
 
@@ -625,25 +707,25 @@ function connecterSocket() {
       if (alerte) { el.classList.add('alerte'); setTimeout(() => el.classList.remove('alerte'), 600); }
     });
   });
-
   socket.on('timer:fin', () => {
     ['timer-affichage', 'timer-affichage-admin'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '⏰ Terminé'; });
   });
-
-  socket.on('groupes:maj', ({ participants }) => { if (etatRole === 'admin') renderParticipants(Object.entries(participants).map(([id,p]) => ({ id, ...p }))); });
 
   socket.on('retenues:maj', ({ etapeId, retenues }) => {
     if (etatRole === 'admin') renderRetenuesAdmin(etapeId, retenues);
     else renderRetenuesParticipant(retenues);
   });
 
-  socket.on('miseEnCommun:maj', ({ etapeId }) => { if (etatRole === 'admin' && etapeCouranteId === etapeId) refreshMiseEnCommunAdmin(); });
+  socket.on('saisies:maj', ({ etapeId }) => { if (etatRole === 'admin' && etapeCouranteId === etapeId) refreshSaisiesAdmin(); });
+
+  socket.on('mesIdees:maj', ({ etapeId, items }) => { if (etatRole === 'participant') renderMesIdees(items); });
 
   socket.on('participant:bienvenue', ({ participantId: pid, sequence }) => {
     participantId = pid;
-    localStorage.setItem('facilitation_participant_id', pid);
+    sessionStorage.setItem('facilitation_participant_id', pid);
     sequenceCourante = sequence;
     groupesMap = {}; (sequence.groupes || []).forEach(g => groupesMap[g.id] = g);
+    document.getElementById('p-mon-nom').textContent = monPseudo;
     document.getElementById('p-nom-seq').textContent = sequence.nom;
     afficherEcran('ecran-session-participant');
   });
@@ -651,11 +733,7 @@ function connecterSocket() {
   socket.on('erreur', (msg) => alert('Erreur : ' + msg));
 }
 
-function formatTemps(sec) {
-  sec = Math.max(0, sec);
-  const m = Math.floor(sec / 60), s = sec % 60;
-  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-}
+function formatTemps(sec) { sec = Math.max(0, sec); const m = Math.floor(sec/60), s = sec%60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
 function majProgression(barId, txtId) {
   if (!sequenceCourante || !sequenceCourante.etapes || !sequenceCourante.etapes.length) return;
@@ -666,7 +744,7 @@ function majProgression(barId, txtId) {
   document.getElementById(txtId).textContent = `Étape ${idx>=0?idx+1:0} / ${total}`;
 }
 
-// --- Chronologie (admin) ---
+// --- Chronologie (session live, admin) ---
 function renderChronologie() {
   if (!sequenceCourante) return;
   const el = document.getElementById('a-chronologie');
@@ -675,11 +753,7 @@ function renderChronologie() {
   const idxCourante = sequenceCourante.etapes.findIndex(e => e.id === etapeCouranteId);
   el.innerHTML = (sequenceCourante.etapes || []).map((e, i) => {
     let horaire = '';
-    if (heure !== null) {
-      const debut = heure;
-      heure += e.duree / 60;
-      horaire = `${formatHeure(debut)} → ${formatHeure(heure)}`;
-    }
+    if (heure !== null) { const debut = heure; heure += e.duree / 60; horaire = `${formatHeure(debut)} → ${formatHeure(heure)}`; }
     const cls = i === idxCourante ? 'en-cours' : (i < idxCourante ? 'fait' : '');
     return `<div class="chrono-etape ${cls}">
       <span>${i+1}. ${escHtml(e.titre)} <span style="color:#6c757d; font-size:12px;">(${e.duree/60} min)</span> ${horaire?`<span style="color:#6c757d; font-size:12px;"> — ${horaire}</span>`:''}</span>
@@ -702,25 +776,66 @@ function modifierTimer() {
 }
 
 // --- Groupes / participants (admin) ---
-let currentParticipantsCache = [];
 function renderParticipants(participants) {
   currentParticipantsCache = participants;
   const el = document.getElementById('a-participants-liste');
   const legende = document.getElementById('a-groupes-legende');
   legende.innerHTML = (sequenceCourante.groupes||[]).map(g => `<span class="groupe-chip" style="background:${g.couleur}" onclick="affecterAuGroupe('${g.id}')">${escHtml(g.nom)}</span>`).join(' ') +
     ` <span class="groupe-chip" style="background:#6c757d;" onclick="affecterAuGroupe(null)">Sans groupe</span>`;
+  if (!participants.filter(p=>p.connected).length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Aucun participant connecté.</p>'; return; }
   el.innerHTML = participants.filter(p=>p.connected).map(p => {
     const g = p.groupId ? groupesMap[p.groupId] : null;
-    return `<span class="participant-chip" style="${g?`border:2px solid ${g.couleur};`:''} ${selectionParticipantPourGroupe===p.id?'outline:2px solid #007bff;':''}" onclick="selectionnerParticipant('${p.id}')">${escHtml(p.pseudo)}${g?` (${escHtml(g.nom)})`:''}</span>`;
+    return `<span class="participant-chip ${selectionParticipantPourGroupe===p.id?'selectionne':''}" style="${g?`border-color:${g.couleur};`:''}" onclick="selectionnerParticipant('${p.id}')">${escHtml(p.pseudo)}${g?` (${escHtml(g.nom)})`:''}</span>`;
   }).join('');
 }
 function selectionnerParticipant(pid) { selectionParticipantPourGroupe = pid; renderParticipants(currentParticipantsCache); }
 function affecterAuGroupe(groupId) {
-  if (!selectionParticipantPourGroupe) { alert('Sélectionnez d\'abord un participant.'); return; }
+  if (!selectionParticipantPourGroupe) { alert("Sélectionnez d'abord un participant."); return; }
   socket.emit('admin:groupes:assigner', { participantId: selectionParticipantPourGroupe, groupId });
   selectionParticipantPourGroupe = null;
 }
-function autoAssignerGroupes() { socket.emit('admin:groupes:autoAssign'); }
+function autoAssignerGroupes() {
+  if (!sequenceCourante.groupes || !sequenceCourante.groupes.length) { alert('Créez au moins un groupe dans l\'édition de la séquence avant de répartir.'); return; }
+  socket.emit('admin:groupes:autoAssign');
+}
+function renderCompositionGroupes(participants) {
+  const el = document.getElementById('a-composition-groupes');
+  const groupes = sequenceCourante.groupes || [];
+  if (!groupes.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Aucun groupe défini pour cette séquence.</p>'; return; }
+  const connectes = participants.filter(p => p.connected);
+  el.innerHTML = groupes.map(g => {
+    const membres = connectes.filter(p => p.groupId === g.id);
+    return `<div class="groupe-bloc" style="border-left-color:${g.couleur};">
+      <h4><span class="groupe-chip" style="background:${g.couleur};">${escHtml(g.nom)}</span> (${membres.length})</h4>
+      <div style="font-size:13px;">${membres.length ? membres.map(m=>escHtml(m.pseudo)).join(', ') : '<span style="color:#6c757d;">Aucun membre</span>'}</div>
+    </div>`;
+  }).join('') + (() => {
+    const sansGroupe = connectes.filter(p => !p.groupId);
+    return sansGroupe.length ? `<div class="groupe-bloc"><h4>Sans groupe (${sansGroupe.length})</h4><div style="font-size:13px;">${sansGroupe.map(m=>escHtml(m.pseudo)).join(', ')}</div></div>` : '';
+  })();
+}
+
+// --- Saisies individuelles en direct (admin) ---
+async function refreshSaisiesAdmin() {
+  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`);
+  const s = await res.json();
+  sequenceCourante.results = s.results;
+  const r = s.results[etapeCouranteId] || { submissions: {} };
+  renderSaisiesIndividuelAdmin(r.submissions || {});
+}
+function renderSaisiesIndividuelAdmin(submissions) {
+  const el = document.getElementById('a-saisies-individuel');
+  if (!el) return;
+  const entries = Object.values(submissions).filter(s => (s.items||[]).length);
+  if (!entries.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Aucune saisie pour le moment.</p>'; return; }
+  el.innerHTML = entries.map(s => {
+    const g = s.groupId ? groupesMap[s.groupId] : null;
+    return `<div style="margin-bottom:8px;">
+      <strong>${escHtml(s.pseudo)}</strong> ${g?`<span class="groupe-chip" style="background:${g.couleur};">${escHtml(g.nom)}</span>`:''}
+      <ul style="margin:4px 0 0 18px; padding:0; font-size:13px;">${(s.items||[]).map(it => `<li>${escHtml(it.text)}</li>`).join('')}</ul>
+    </div>`;
+  }).join('');
+}
 
 // --- Mise en commun (admin) ---
 function renderMiseEnCommunAdmin(etape, results) {
@@ -728,9 +843,7 @@ function renderMiseEnCommunAdmin(etape, results) {
   if (etape.type !== 'mise_en_commun') { panel.innerHTML = '<p style="color:#6c757d;">L\'étape en cours n\'est pas une mise en commun.</p>'; return; }
   const source = sequenceCourante.etapes.find(e => e.id === etape.sourceEtapeId);
   let html = '';
-  if (source) {
-    html += `<h4>Saisies de l'étape "${escHtml(source.titre)}"</h4><div id="a-saisies-source"></div>`;
-  }
+  if (source) html += `<h4>Saisies de l'étape "${escHtml(source.titre)}"</h4><div id="a-saisies-source"></div>`;
   html += `<h4 style="margin-top:14px;">✅ Idées retenues</h4>
     <div style="display:flex; gap:6px; margin-bottom:8px;">
       <input type="text" id="a-nouvelle-idee" placeholder="Ajouter une idée...">
@@ -747,11 +860,15 @@ async function refreshMiseEnCommunAdmin() {
   const r = s.results[etapeCouranteId] || { submissions: {}, retenues: [] };
   const zoneSaisies = document.getElementById('a-saisies-source');
   if (zoneSaisies) {
-    zoneSaisies.innerHTML = Object.values(r.submissions || {}).map(sub => {
+    const lignes = [];
+    Object.values(r.submissions || {}).forEach(sub => {
       const g = sub.groupId ? groupesMap[sub.groupId] : null;
-      return `<div class="retenue-item"><span>${g?`<span class="groupe-chip" style="background:${g.couleur}">${escHtml(g.nom)}</span> `:''}<strong>${escHtml(sub.pseudo)}</strong> : ${escHtml(sub.text)}</span>
-        <button class="btn btn-petit btn-vert" onclick="retenirIdee('${escAttr(sub.text)}','${g?escAttr(g.nom):''}')">✓ Retenir</button></div>`;
-    }).join('') || '<p style="color:#6c757d; font-size:13px;">Aucune saisie pour le moment.</p>';
+      (sub.items || []).forEach(item => {
+        lignes.push(`<div class="retenue-item"><span>${g?`<span class="groupe-chip" style="background:${g.couleur}">${escHtml(g.nom)}</span> `:''}<strong>${escHtml(sub.pseudo)}</strong> : ${escHtml(item.text)}</span>
+          <button class="btn btn-petit btn-vert" onclick="retenirIdee('${escAttr(item.text)}','${g?escAttr(g.nom):''}')">✓ Retenir</button></div>`);
+      });
+    });
+    zoneSaisies.innerHTML = lignes.join('') || '<p style="color:#6c757d; font-size:13px;">Aucune saisie pour le moment.</p>';
   }
   renderRetenuesAdmin(etapeCouranteId, r.retenues || []);
 }
@@ -789,16 +906,31 @@ function rejoindreSession() {
   const pseudo = document.getElementById('input-pseudo-participant').value.trim();
   if (!code || !pseudo) { alert('Merci de renseigner le code de session et votre pseudo.'); return; }
   sequenceIdCourante = code;
+  monPseudo = pseudo;
   etatRole = 'participant';
   connecterSocket();
   socket.emit('participant:join', { sequenceId: code, pseudo, participantId });
 }
-function envoyerSaisie() {
-  const texte = document.getElementById('p-saisie-texte').value.trim();
-  if (!texte) return;
-  socket.emit('participant:saisie', { etapeId: etapeCouranteId, text: texte });
-  document.getElementById('p-saisie-statut').textContent = '✔ Envoyé';
+
+// --- Mes idées (saisies multiples, modifiables) ---
+function renderMesIdees(items) {
+  const el = document.getElementById('p-mes-idees');
+  if (!items || !items.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Vous n\'avez encore rien saisi.</p>'; return; }
+  el.innerHTML = items.map(it => `
+    <div class="idee-item">
+      <input type="text" value="${escAttr(it.text)}" onchange="modifierMonIdee('${it.id}', this.value)">
+      <button class="btn btn-petit btn-rouge" onclick="supprimerMonIdee('${it.id}')">✕</button>
+    </div>`).join('');
 }
+function ajouterMonIdee() {
+  const champ = document.getElementById('p-nouvelle-idee');
+  const v = champ.value.trim();
+  if (!v) return;
+  socket.emit('participant:ajouterIdee', { etapeId: etapeCouranteId, text: v });
+  champ.value = '';
+}
+function modifierMonIdee(itemId, text) { socket.emit('participant:modifierIdee', { etapeId: etapeCouranteId, itemId, text: text.trim() }); }
+function supprimerMonIdee(itemId) { socket.emit('participant:supprimerIdee', { etapeId: etapeCouranteId, itemId }); }
 
 // ---------------- EMAIL ----------------
 async function envoyerParEmail() {
