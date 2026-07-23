@@ -34,6 +34,24 @@ Un fichier `.env.example` (sans secret réel) est fourni comme modèle : copie-l
 cp .env.example .env
 ```
 
+## Persistance des données (survie aux redémarrages Render)
+
+Render efface le disque local à chaque redéploiement ou réveil du service (comportement standard, y compris sur le plan gratuit). Le module Facilitation utilise donc **le même mécanisme que le module Quizz** : à chaque création/modification/duplication/archivage d'une séquence (ou modification des publics/lieux), le fichier JSON correspondant est automatiquement recopié dans le dépôt GitHub via l'API, en utilisant les variables d'environnement déjà en place pour le Quizz :
+
+```
+GITHUB_TOKEN=...
+GITHUB_REPO_OWNER=...
+GITHUB_REPO_NAME=...
+```
+
+Si elles sont déjà configurées sur Render pour le quizz, le module Facilitation les réutilise automatiquement — rien à faire de plus. Au démarrage, le serveur va aussi chercher sur GitHub les séquences et la config qui ne seraient plus présentes localement, pour les restaurer.
+
+⚠️ Seule la **structure** des séquences (nom, groupes, étapes, informations) est synchronisée. Les résultats saisis en direct pendant une session (idées, retenues) restent uniquement en local pendant la session, pour ne pas multiplier les appels à l'API GitHub — pense à exporter/télécharger le CSV en fin d'atelier.
+
+## ⚠️ Si le lien "Quizz" affiche une erreur (page introuvable)
+
+Cela signifie que le fichier `public/quizz.html` n'a pas été correctement déposé sur GitHub (ou n'a pas encore été déployé). Vérifie sur la page GitHub de ton dépôt, dans le dossier `public/`, que le fichier `quizz.html` est bien présent — sinon re-uploade-le (voir section Installation), puis relance un déploiement sur Render ("Manual Deploy → Deploy latest commit").
+
 ## 🔒 Sécurité : ne jamais versionner `.env`
 
 Ce projet est livré avec :
@@ -62,18 +80,19 @@ Si le script t'indique que `.env` a été trouvé dans l'historique, régénère
 1. Aller sur `/facilitation.html` → "Je suis l'animateur"
 2. Créer une séquence (nom, descriptif, public, lieu, heure de démarrage, email destinataire)
 3. Ajouter des groupes (nom + couleur) si besoin
-4. Ajouter des étapes :
-   - **Travail individuel** : chaque participant saisit son texte en privé
+4. Ajouter des étapes — l'horaire prévu (début/fin) de chaque étape s'affiche automatiquement si une heure de démarrage a été renseignée :
+   - **Travail individuel** : chaque participant peut saisir plusieurs idées, les modifier ou les supprimer, en privé
    - **Mise en commun** : reprend les saisies d'une étape individuelle, permet de "retenir" des idées, les réordonner, en ajouter, les supprimer
    - **Temps libre** : simple minuteur + message pour l'animateur
-5. Cliquer sur "🚀 Lancer la session" → un **code de session** s'affiche (identifiant de la séquence). Le communiquer aux participants.
-6. Démarrer les étapes une à une depuis la chronologie, contrôler le timer (pause/reprise/réinitialisation/modification), suivre les groupes et les connectés, gérer la mise en commun.
-7. Télécharger l'extraction CSV ou l'envoyer par email depuis le panneau "Extraction des travaux".
+5. Lancer la session directement depuis la liste des séquences (bouton "🚀 Lancer") ou depuis l'éditeur.
+6. Un **QR code** et un **lien à copier** s'affichent pour inviter les participants (`facilitation.html?role=participant&seq=...`) — ils arrivent directement sur l'écran pour rejoindre.
+7. Démarrer les étapes une à une depuis la chronologie, contrôler le timer, suivre en direct les saisies des participants pendant une étape individuelle, gérer les groupes (répartition automatique ou affectation manuelle par clic) et consulter la composition de chaque groupe à tout moment.
+8. Télécharger l'extraction CSV ou l'envoyer par email depuis le panneau "Extraction des travaux".
 
 ### Côté participant
-1. Aller sur `/facilitation.html` → "Je suis participant"
-2. Saisir le **code de session** communiqué par l'animateur + son prénom
-3. Suivre le déroulé : consignes, minuteur (le minuteur passe en orange à 5 minutes restantes, rouge à 2 minutes), zone de saisie ou visualisation des idées partagées selon le type d'étape
+1. Scanner le QR code (ou ouvrir le lien) fourni par l'animateur, ou aller sur `/facilitation.html` → "Je suis participant" et saisir le code de session + son prénom
+2. Son prénom et son groupe s'affichent en haut de l'écran
+3. Suivre le déroulé : consignes, minuteur (orange à 5 minutes restantes, rouge à 2 minutes), zone de saisie (ajout/modification/suppression de plusieurs idées) ou visualisation des idées partagées selon le type d'étape
 
 ## Données
 
