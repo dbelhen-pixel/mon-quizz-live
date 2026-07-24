@@ -26,6 +26,7 @@
   .ligne-seq { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
   .badge { display:inline-block; padding: 2px 9px; border-radius: 12px; font-size: 12px; font-weight: 600; background:#e9ecef; color:#495057; }
   .badge-archivee { background:#f8d7da; color:#842029; }
+  .badge-active { background:#d4edda; color:#155724; }
   .grille2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .etape-item { border:1px solid #e2e5e9; border-radius:8px; padding:12px; margin-bottom:10px; background:#fafbfc; }
   .etape-item .type-badge { font-size: 11px; padding:2px 8px; border-radius:10px; color:#fff; }
@@ -65,23 +66,16 @@
 
   <div class="top-nav"><a href="index.html">← Retour à l'accueil des outils</a></div>
 
-  <!-- ============ ECRAN CHOIX ROLE ============ -->
+  <!-- ============ ECRAN D'ACCUEIL UNIQUE (comme le Quizz) ============ -->
   <div id="ecran-role">
     <h1>🧭 Facilitation</h1>
-    <p>Concevez et animez vos séquences d'atelier.</p>
-    <button class="btn btn-vert" onclick="allerAnimateur()">🧑‍🏫 Je suis l'animateur</button>
-    <button class="btn" onclick="allerParticipant()">🙋 Je suis participant</button>
-  </div>
-
-  <!-- ============ PARTICIPANT : REJOINDRE ============ -->
-  <div id="ecran-join-participant" class="hidden">
-    <h2>Rejoindre une session</h2>
-    <label>Code de session (fourni par l'animateur)</label>
-    <input type="text" id="input-code-session" placeholder="ex: k3f9a2b1">
-    <label>Votre prénom / pseudo</label>
-    <input type="text" id="input-pseudo-participant" placeholder="Votre prénom">
-    <button class="btn btn-vert" onclick="rejoindreSession()">Rejoindre</button>
-    <button class="btn btn-gris" onclick="retourRole()">Retour</button>
+    <p>Rejoignez la session en cours, ou gérez les séquences depuis l'administration.</p>
+    <input type="text" id="input-pseudo-participant" placeholder="Entrez votre prénom / pseudo" style="max-width:320px; margin:0 auto 10px auto;">
+    <br>
+    <button class="btn btn-vert" onclick="rejoindreSession()">Rejoindre la session</button>
+    <br><br>
+    <button class="btn" onclick="devenirAnimateur()">🧑‍🏫 Je suis l'animateur</button>
+    <button class="btn btn-gris" onclick="ouvrirAdministration()">⚙️ Administration</button>
   </div>
 
   <!-- ============ PARTICIPANT : SESSION EN COURS ============ -->
@@ -96,7 +90,9 @@
       <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="p-progression-txt"></div>
     </div>
 
-    <div class="carte" id="p-carte-etape">
+    <div class="carte msg-info" id="p-attente-sequence">En attente que l'animateur active une séquence...</div>
+
+    <div class="carte hidden" id="p-carte-etape">
       <h2 id="p-titre-etape">En attente du démarrage...</h2>
       <p id="p-consignes-etape" style="white-space:pre-wrap;"></p>
       <div style="text-align:center;">
@@ -123,16 +119,16 @@
     </div>
   </div>
 
-  <!-- ============ ANIMATEUR : LISTE DES SEQUENCES ============ -->
+  <!-- ============ ADMINISTRATION : BIBLIOTHEQUE DE SEQUENCES ============ -->
   <div id="ecran-liste-sequences" class="hidden">
-    <h2>Mes séquences</h2>
+    <h2>⚙️ Administration - Mes séquences</h2>
+    <button class="btn btn-gris" onclick="retourRole()">← Retour à l'accueil</button>
     <button class="btn btn-vert" onclick="creerSequence()">➕ Nouvelle séquence</button>
-    <button class="btn btn-gris" onclick="ouvrirConfig()">⚙️ Publics / Lieux</button>
-    <button class="btn btn-gris" onclick="retourRole()">Retour</button>
+    <button class="btn btn-gris" onclick="ouvrirConfig()">📍 Publics / Lieux</button>
     <div id="liste-sequences" style="margin-top:16px;"></div>
   </div>
 
-  <!-- ============ ANIMATEUR : CONFIG PUBLICS/LIEUX ============ -->
+  <!-- ============ ADMINISTRATION : CONFIG PUBLICS/LIEUX ============ -->
   <div id="ecran-config" class="hidden">
     <h2>Paramétrage des publics et lieux</h2>
     <div class="grille2">
@@ -152,7 +148,7 @@
     <button class="btn btn-gris" onclick="afficherEcran('ecran-liste-sequences'); chargerSequences();">← Retour aux séquences</button>
   </div>
 
-  <!-- ============ ANIMATEUR : EDITION SEQUENCE ============ -->
+  <!-- ============ ADMINISTRATION : EDITION SEQUENCE ============ -->
   <div id="ecran-edition-sequence" class="hidden">
     <h2 id="edition-titre">Édition de la séquence</h2>
     <div class="carte">
@@ -161,24 +157,12 @@
       <label>Descriptif</label>
       <textarea id="seq-descriptif"></textarea>
       <div class="grille2">
-        <div>
-          <label>Public</label>
-          <select id="seq-public"></select>
-        </div>
-        <div>
-          <label>Lieu</label>
-          <select id="seq-lieu"></select>
-        </div>
+        <div><label>Public</label><select id="seq-public"></select></div>
+        <div><label>Lieu</label><select id="seq-lieu"></select></div>
       </div>
       <div class="grille2">
-        <div>
-          <label>Heure de démarrage prévue</label>
-          <input type="time" id="seq-heure" onchange="renderEtapes()">
-        </div>
-        <div>
-          <label>Email destinataire (extraction)</label>
-          <input type="text" id="seq-email-to" placeholder="destinataire@exemple.fr">
-        </div>
+        <div><label>Heure de démarrage prévue</label><input type="time" id="seq-heure" onchange="renderEtapes()"></div>
+        <div><label>Email destinataire (extraction)</label><input type="text" id="seq-email-to" placeholder="destinataire@exemple.fr"></div>
       </div>
       <button class="btn" onclick="enregistrerInfosSequence()">💾 Enregistrer les informations</button>
     </div>
@@ -224,100 +208,108 @@
     </div>
 
     <div class="carte">
-      <button class="btn btn-vert" onclick="lancerSession()">🚀 Lancer la session</button>
+      <button class="btn btn-vert" onclick="activerEtControler(sequenceIdCourante)">▶️ Activer et contrôler cette séquence</button>
       <button class="btn btn-gris" onclick="afficherEcran('ecran-liste-sequences'); chargerSequences();">← Retour aux séquences</button>
     </div>
   </div>
 
   <!-- ============ ANIMATEUR : SESSION EN DIRECT ============ -->
   <div id="ecran-session-admin" class="hidden">
-    <div class="carte">
-      <div class="ligne-seq">
-        <h2 id="a-nom-seq" style="margin:0;"></h2>
-        <div><span class="badge">Code session : <strong id="a-code-session"></strong></span></div>
-      </div>
-      <div class="connectes-box" id="a-connectes" style="margin-top:10px;"></div>
-      <div class="progression-bar-bg" style="margin-top:8px;"><div class="progression-bar" id="a-progression" style="width:0%;"></div></div>
-      <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="a-progression-txt"></div>
+    <div class="carte" id="a-aucune-sequence">
+      <p class="msg-info">Aucune séquence n'est activée pour le moment.</p>
+      <button class="btn btn-vert" onclick="ouvrirAdministration()">⚙️ Aller à l'administration pour en activer une</button>
     </div>
 
-    <div class="carte">
-      <h3>📱 Inviter des participants</h3>
+    <div id="a-contenu-session" class="hidden">
+      <div class="carte">
+        <div class="ligne-seq">
+          <h2 id="a-nom-seq" style="margin:0;"></h2>
+          <button class="btn btn-petit btn-gris" onclick="ouvrirAdministration()">⚙️ Administration</button>
+        </div>
+        <div class="connectes-box" id="a-connectes" style="margin-top:10px;"></div>
+        <div class="progression-bar-bg" style="margin-top:8px;"><div class="progression-bar" id="a-progression" style="width:0%;"></div></div>
+        <div style="font-size:12px; color:#6c757d; margin-top:4px;" id="a-progression-txt"></div>
+      </div>
+
+      <div class="carte">
+        <h3>📱 Inviter des participants</h3>
+        <div class="grille2">
+          <div class="qr-box">
+            <img id="a-qrcode" width="160" height="160" alt="QR code de la session">
+            <div style="font-size:12px; color:#6c757d;">À scanner pour rejoindre</div>
+          </div>
+          <div>
+            <label>Lien direct à partager</label>
+            <div class="lien-copie">
+              <input type="text" id="a-lien-participant" readonly>
+              <button class="btn btn-petit" onclick="copierLienParticipant()">📋 Copier</button>
+            </div>
+            <p style="font-size:12px; color:#6c757d; margin-top:8px;">Les participants n'ont besoin que d'un pseudo, aucun code à saisir.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="grille2">
-        <div class="qr-box">
-          <img id="a-qrcode" width="160" height="160" alt="QR code de la session">
-          <div style="font-size:12px; color:#6c757d;">À scanner pour rejoindre</div>
-        </div>
-        <div>
-          <label>Lien direct à partager</label>
-          <div class="lien-copie">
-            <input type="text" id="a-lien-participant" readonly>
-            <button class="btn btn-petit" onclick="copierLienParticipant()">📋 Copier</button>
+        <div class="carte">
+          <h3>⏱ Étape en cours</h3>
+          <div id="a-etape-vide" class="msg-info">Aucune étape démarrée. Choisissez une étape dans la chronologie ci-dessous.</div>
+          <div id="a-etape-active" class="hidden">
+            <strong id="a-titre-etape"></strong>
+            <p id="a-consignes-etape" style="font-size:13px; color:#555; white-space:pre-wrap;"></p>
+            <div style="text-align:center;"><div id="timer-affichage-admin" style="font-size:2.6em; font-weight:bold; color:#28a745;">--:--</div></div>
+            <div style="text-align:center;">
+              <button class="btn btn-petit btn-orange" onclick="controleTimer('pause')">⏸ Pause</button>
+              <button class="btn btn-petit btn-vert" onclick="controleTimer('reprendre')">▶ Reprendre</button>
+              <button class="btn btn-petit btn-gris" onclick="controleTimer('reinitialiser')">↺ Réinitialiser</button>
+              <button class="btn btn-petit" onclick="modifierTimer()">✏ Modifier durée</button>
+            </div>
+            <div id="a-non-participants" style="font-size:12px; color:#dc3545; margin-top:8px;"></div>
+            <div id="a-saisies-individuel-wrap" class="hidden" style="margin-top:10px;">
+              <h4 style="margin-bottom:4px;">📝 Saisies en direct</h4>
+              <div id="a-saisies-individuel"></div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div class="grille2">
-      <div class="carte">
-        <h3>⏱ Étape en cours</h3>
-        <div id="a-etape-vide" class="msg-info">Aucune étape démarrée. Choisissez une étape dans la chronologie ci-dessous.</div>
-        <div id="a-etape-active" class="hidden">
-          <strong id="a-titre-etape"></strong>
-          <p id="a-consignes-etape" style="font-size:13px; color:#555; white-space:pre-wrap;"></p>
-          <div style="text-align:center;"><div id="timer-affichage-admin" style="font-size:2.6em; font-weight:bold; color:#28a745;">--:--</div></div>
-          <div style="text-align:center;">
-            <button class="btn btn-petit btn-orange" onclick="controleTimer('pause')">⏸ Pause</button>
-            <button class="btn btn-petit btn-vert" onclick="controleTimer('reprendre')">▶ Reprendre</button>
-            <button class="btn btn-petit btn-gris" onclick="controleTimer('reinitialiser')">↺ Réinitialiser</button>
-            <button class="btn btn-petit" onclick="modifierTimer()">✏ Modifier durée</button>
-          </div>
-          <div id="a-non-participants" style="font-size:12px; color:#dc3545; margin-top:8px;"></div>
-          <div id="a-saisies-individuel-wrap" class="hidden" style="margin-top:10px;">
-            <h4 style="margin-bottom:4px;">📝 Saisies en direct</h4>
-            <div id="a-saisies-individuel"></div>
-          </div>
+        <div class="carte">
+          <h3>👥 Groupes</h3>
+          <button class="btn btn-petit" onclick="autoAssignerGroupes()">⚖️ Répartir les non-affectés</button>
+          <div id="a-groupes-legende" style="margin:8px 0;"></div>
+          <div style="font-size:13px; color:#555;">Cliquez sur un participant puis sur un groupe pour l'affecter :</div>
+          <div id="a-participants-liste" style="margin-top:6px; margin-bottom:12px;"></div>
+          <h4 style="margin-bottom:6px;">Composition des groupes</h4>
+          <div id="a-composition-groupes"></div>
         </div>
       </div>
 
       <div class="carte">
-        <h3>👥 Groupes</h3>
-        <button class="btn btn-petit" onclick="autoAssignerGroupes()">⚖️ Répartir les non-affectés</button>
-        <div id="a-groupes-legende" style="margin:8px 0;"></div>
-        <div style="font-size:13px; color:#555;">Cliquez sur un participant puis sur un groupe pour l'affecter :</div>
-        <div id="a-participants-liste" style="margin-top:6px; margin-bottom:12px;"></div>
-        <h4 style="margin-bottom:6px;">Composition des groupes</h4>
-        <div id="a-composition-groupes"></div>
+        <h3>🗓 Chronologie de la séquence</h3>
+        <div id="a-chronologie"></div>
+      </div>
+
+      <div class="carte" id="a-mise-en-commun-panel">
+        <h3>💬 Mise en commun</h3>
+        <div id="a-mise-en-commun-contenu"><p style="color:#6c757d;">Démarrez une étape de type "Mise en commun" pour l'utiliser.</p></div>
+      </div>
+
+      <div class="carte">
+        <h3>📤 Extraction des travaux</h3>
+        <a id="a-lien-telecharger" class="btn" href="#" target="_blank">⬇️ Télécharger (CSV)</a>
+        <button class="btn btn-vert" onclick="envoyerParEmail()">✉️ Envoyer par email</button>
+        <span id="a-email-statut" style="margin-left:8px; font-size:13px;"></span>
       </div>
     </div>
-
-    <div class="carte">
-      <h3>🗓 Chronologie de la séquence</h3>
-      <div id="a-chronologie"></div>
-    </div>
-
-    <div class="carte" id="a-mise-en-commun-panel">
-      <h3>💬 Mise en commun</h3>
-      <div id="a-mise-en-commun-contenu"><p style="color:#6c757d;">Démarrez une étape de type "Mise en commun" pour l'utiliser.</p></div>
-    </div>
-
-    <div class="carte">
-      <h3>📤 Extraction des travaux</h3>
-      <a id="a-lien-telecharger" class="btn" href="#" target="_blank">⬇️ Télécharger (CSV)</a>
-      <button class="btn btn-vert" onclick="envoyerParEmail()">✉️ Envoyer par email</button>
-      <span id="a-email-statut" style="margin-left:8px; font-size:13px;"></span>
-    </div>
-
-    <button class="btn btn-gris" onclick="quitterSession()">← Quitter la session (retour édition)</button>
   </div>
 
 </div>
 
 <script>
-let socket = null;
+// Connexion permanente au namespace Facilitation dès le chargement de la page (comme le Quizz)
+const socket = io('/facilitation');
+
 let etatRole = null;
-let sequenceCourante = null;
-let sequenceIdCourante = null;
+let sequenceCourante = null;   // séquence active reçue du serveur (vue animateur ou participant)
+let sequenceIdCourante = null; // séquence en cours d'édition dans l'administration
 let etapeCouranteId = null;
 // sessionStorage : identifiant propre à cet onglet/navigateur (évite que 2 participants
 // ouverts sur le même appareil ne partagent la même identité, contrairement à localStorage)
@@ -328,30 +320,29 @@ let selectionParticipantPourGroupe = null;
 let currentParticipantsCache = [];
 
 function afficherEcran(id) {
-  document.querySelectorAll('#ecran-role, #ecran-join-participant, #ecran-session-participant, #ecran-liste-sequences, #ecran-config, #ecran-edition-sequence, #ecran-session-admin')
+  document.querySelectorAll('#ecran-role, #ecran-session-participant, #ecran-liste-sequences, #ecran-config, #ecran-edition-sequence, #ecran-session-admin')
     .forEach(el => el.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 }
 function retourRole() { afficherEcran('ecran-role'); }
 
-function allerAnimateur() { etatRole = 'admin'; afficherEcran('ecran-liste-sequences'); chargerSequences(); }
-function allerParticipant() {
+// ---------------- ACCUEIL ----------------
+function rejoindreSession() {
+  const pseudo = document.getElementById('input-pseudo-participant').value.trim();
+  if (!pseudo) { alert('Merci de renseigner votre prénom / pseudo.'); return; }
+  monPseudo = pseudo;
   etatRole = 'participant';
-  const params = new URLSearchParams(location.search);
-  const codePre = params.get('seq');
-  afficherEcran('ecran-join-participant');
-  if (codePre) document.getElementById('input-code-session').value = codePre;
+  afficherEcran('ecran-session-participant');
+  socket.emit('participant:join', { pseudo, participantId });
 }
+function devenirAnimateur() {
+  etatRole = 'admin';
+  afficherEcran('ecran-session-admin');
+  socket.emit('admin:join');
+}
+function ouvrirAdministration() { afficherEcran('ecran-liste-sequences'); chargerSequences(); }
 
-// Auto-détection d'un lien d'invitation (QR code / lien copié) au chargement de la page
-(function detecterLienInvitation() {
-  const params = new URLSearchParams(location.search);
-  if (params.get('role') === 'participant' && params.get('seq')) {
-    window.addEventListener('DOMContentLoaded', () => allerParticipant());
-  }
-})();
-
-// ---------------- ANIMATEUR : LISTE SEQUENCES ----------------
+// ---------------- ADMINISTRATION : LISTE SEQUENCES ----------------
 async function chargerSequences() {
   const res = await fetch('/facilitation/api/sequences');
   const seqs = await res.json();
@@ -364,11 +355,11 @@ async function chargerSequences() {
     div.innerHTML = `
       <div class="ligne-seq">
         <div>
-          <strong>${escHtml(s.nom)}</strong> ${s.archived ? '<span class="badge badge-archivee">Archivée</span>' : ''}
+          <strong>${escHtml(s.nom)}</strong> ${s.active ? '<span class="badge badge-active">🟢 Active</span>' : ''} ${s.archived ? '<span class="badge badge-archivee">Archivée</span>' : ''}
           <div style="font-size:13px; color:#6c757d;">${escHtml(s.public||'')} • ${escHtml(s.lieu||'')} • ${s.nbEtapes} étape(s)</div>
         </div>
         <div>
-          <button class="btn btn-petit btn-vert" onclick="lancerDepuisListe('${s.id}')">🚀 Lancer</button>
+          <button class="btn btn-petit btn-vert" onclick="activerEtControler('${s.id}')">▶️ Activer</button>
           <button class="btn btn-petit" onclick="ouvrirEdition('${s.id}')">✏ Éditer</button>
           <button class="btn btn-petit btn-vert" onclick="dupliquerSequence('${s.id}')">⧉ Dupliquer</button>
           <button class="btn btn-petit btn-orange" onclick="archiverSequence('${s.id}')">${s.archived ? '♻ Désarchiver' : '📦 Archiver'}</button>
@@ -389,14 +380,16 @@ async function supprimerSequence(id) {
   if (!confirm('Supprimer définitivement cette séquence ?')) return;
   await fetch(`/facilitation/api/sequences/${id}`, { method: 'DELETE' }); chargerSequences();
 }
-async function lancerDepuisListe(id) {
-  const res = await fetch(`/facilitation/api/sequences/${id}`);
-  sequenceCourante = await res.json();
-  sequenceIdCourante = id;
-  lancerSession();
+// Active la séquence pour la session en direct (réinitialise les résultats, comme la réutilisation d'un quizz) puis bascule sur le contrôle en direct
+function activerEtControler(id) {
+  if (!confirm("Activer cette séquence va réinitialiser les résultats en cours et devenir LA séquence en direct pour tous les participants. Continuer ?")) return;
+  etatRole = 'admin';
+  socket.emit('admin:activerSequence', { sequenceId: id });
+  socket.emit('admin:join');
+  afficherEcran('ecran-session-admin');
 }
 
-// ---------------- ANIMATEUR : CONFIG PUBLICS / LIEUX ----------------
+// ---------------- ADMINISTRATION : CONFIG PUBLICS / LIEUX ----------------
 let configActuelle = { publics: [], lieux: [] };
 async function chargerConfig() {
   const res = await fetch('/facilitation/api/config');
@@ -409,29 +402,23 @@ function renderConfigListe(elId, arr, cle) {
   el.innerHTML = arr.map((v,i) => `<span class="badge" style="margin:3px; display:inline-flex; align-items:center; gap:6px;">${escHtml(v)} <span style="cursor:pointer;color:#dc3545;" onclick="retirerConfig('${cle}', ${i})">✕</span></span>`).join(' ');
 }
 async function ajouterPublic() {
-  const v = document.getElementById('nouveau-public').value.trim();
-  if (!v) return;
-  configActuelle.publics.push(v);
-  await sauverConfig();
-  document.getElementById('nouveau-public').value = '';
+  const v = document.getElementById('nouveau-public').value.trim(); if (!v) return;
+  configActuelle.publics.push(v); await sauverConfig(); document.getElementById('nouveau-public').value = '';
 }
 async function ajouterLieu() {
-  const v = document.getElementById('nouveau-lieu').value.trim();
-  if (!v) return;
-  configActuelle.lieux.push(v);
-  await sauverConfig();
-  document.getElementById('nouveau-lieu').value = '';
+  const v = document.getElementById('nouveau-lieu').value.trim(); if (!v) return;
+  configActuelle.lieux.push(v); await sauverConfig(); document.getElementById('nouveau-lieu').value = '';
 }
 async function retirerConfig(cle, index) { configActuelle[cle].splice(index, 1); await sauverConfig(); }
 async function sauverConfig() {
   const res = await fetch('/facilitation/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(configActuelle) });
-  configActuelle = await res.json(); // revient déjà trié par ordre alphabétique
+  configActuelle = await res.json();
   renderConfigListe('liste-publics', configActuelle.publics, 'publics');
   renderConfigListe('liste-lieux', configActuelle.lieux, 'lieux');
 }
 function ouvrirConfig() { afficherEcran('ecran-config'); chargerConfig(); }
 
-// ---------------- ANIMATEUR : EDITION SEQUENCE ----------------
+// ---------------- ADMINISTRATION : EDITION SEQUENCE ----------------
 async function ouvrirEdition(id) {
   await chargerConfig();
   const res = await fetch(`/facilitation/api/sequences/${id}`);
@@ -453,12 +440,9 @@ async function ouvrirEdition(id) {
 }
 async function enregistrerInfosSequence() {
   const body = {
-    nom: document.getElementById('seq-nom').value,
-    descriptif: document.getElementById('seq-descriptif').value,
-    public: document.getElementById('seq-public').value,
-    lieu: document.getElementById('seq-lieu').value,
-    heureDemarrage: document.getElementById('seq-heure').value,
-    emailTo: document.getElementById('seq-email-to').value
+    nom: document.getElementById('seq-nom').value, descriptif: document.getElementById('seq-descriptif').value,
+    public: document.getElementById('seq-public').value, lieu: document.getElementById('seq-lieu').value,
+    heureDemarrage: document.getElementById('seq-heure').value, emailTo: document.getElementById('seq-email-to').value
   };
   const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
   sequenceCourante = await res.json();
@@ -501,13 +485,8 @@ function renderEtapes() {
   let heure = heureDemarrage ? parseHeure(heureDemarrage) : null;
   el.innerHTML = etapes.map((e, i) => {
     let horaire = '';
-    if (heure !== null) {
-      const debut = heure;
-      heure += e.duree / 60;
-      horaire = `${formatHeure(debut)} → ${formatHeure(heure)} (${e.duree/60} min)`;
-    } else {
-      horaire = `${e.duree/60} min`;
-    }
+    if (heure !== null) { const debut = heure; heure += e.duree / 60; horaire = `${formatHeure(debut)} → ${formatHeure(heure)} (${e.duree/60} min)`; }
+    else horaire = `${e.duree/60} min`;
     return `
     <div class="etape-item">
       <div class="ligne-seq">
@@ -530,7 +509,7 @@ function ouvrirFormEtape(id) {
   selSource.innerHTML = etapesIndividuelles.map(e => `<option value="${e.id}">${escHtml(e.titre)}</option>`).join('') || '<option value="">Aucune étape individuelle disponible</option>';
   if (id) {
     const e = sequenceCourante.etapes.find(x => x.id === id);
-    document.getElementById('form-etape-titre').textContent = 'Modifier l\'étape';
+    document.getElementById('form-etape-titre').textContent = "Modifier l'étape";
     document.getElementById('etape-id').value = e.id;
     document.getElementById('etape-type').value = e.type;
     document.getElementById('etape-titre').value = e.titre;
@@ -586,11 +565,8 @@ async function supprimerEtape(id) {
   const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}/impact/${id}`);
   const impact = await res.json();
   if (impact.impact) {
-    const ok = confirm(`⚠️ Cette étape est utilisée comme source par : ${impact.etapesLiees.join(', ')}.\nLa supprimer cassera ce lien. Continuer ?`);
-    if (!ok) return;
-  } else {
-    if (!confirm('Supprimer cette étape ?')) return;
-  }
+    if (!confirm(`⚠️ Cette étape est utilisée comme source par : ${impact.etapesLiees.join(', ')}.\nLa supprimer cassera ce lien. Continuer ?`)) return;
+  } else if (!confirm('Supprimer cette étape ?')) return;
   sequenceCourante.etapes = sequenceCourante.etapes.filter(e => e.id !== id);
   await sauverGroupesEtapes();
   renderEtapes();
@@ -603,140 +579,134 @@ async function sauverGroupesEtapes() {
   sequenceCourante = await res.json();
 }
 
-// ---------------- LANCEMENT SESSION (ANIMATEUR) ----------------
-function lancerSession() {
-  connecterSocket();
-  socket.emit('admin:join', { sequenceId: sequenceIdCourante });
-  afficherEcran('ecran-session-admin');
-  document.getElementById('a-nom-seq').textContent = sequenceCourante.nom;
-  document.getElementById('a-code-session').textContent = sequenceIdCourante;
-  document.getElementById('a-lien-telecharger').href = `/facilitation/api/sequences/${sequenceIdCourante}/export.csv`;
-  const lienParticipant = `${location.origin}/facilitation.html?role=participant&seq=${sequenceIdCourante}`;
-  document.getElementById('a-lien-participant').value = lienParticipant;
-  document.getElementById('a-qrcode').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(lienParticipant)}`;
-}
+// ---------------- COPIE DU LIEN PARTICIPANT ----------------
 function copierLienParticipant() {
   const champ = document.getElementById('a-lien-participant');
   champ.select();
   navigator.clipboard ? navigator.clipboard.writeText(champ.value) : document.execCommand('copy');
 }
-function quitterSession() {
-  if (socket) socket.disconnect();
-  socket = null;
-  ouvrirEdition(sequenceIdCourante);
-}
 
-// ---------------- SOCKET.IO COMMUN ----------------
-function connecterSocket() {
-  if (socket) socket.disconnect();
-  socket = io('/facilitation');
-
-  socket.on('sequence:donnees', (s) => {
-    sequenceCourante = s;
-    groupesMap = {}; (s.groupes || []).forEach(g => groupesMap[g.id] = g);
+// ---------------- SOCKET.IO : ECOUTE COMMUNE ----------------
+socket.on('sequence:active', ({ sequence }) => {
+  sequenceCourante = sequence;
+  groupesMap = {};
+  (sequence && sequence.groupes || []).forEach(g => groupesMap[g.id] = g);
+  if (etatRole === 'admin') {
+    const aucune = document.getElementById('a-aucune-sequence');
+    const contenu = document.getElementById('a-contenu-session');
+    if (!sequence) { aucune.classList.remove('hidden'); contenu.classList.add('hidden'); return; }
+    aucune.classList.add('hidden'); contenu.classList.remove('hidden');
+    document.getElementById('a-nom-seq').textContent = sequence.nom;
+    document.getElementById('a-lien-telecharger').href = `/facilitation/api/sequences/${sequence.id}/export.csv`;
+    const lienParticipant = `${location.origin}/facilitation.html`;
+    document.getElementById('a-lien-participant').value = lienParticipant;
+    document.getElementById('a-qrcode').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(lienParticipant)}`;
+    document.getElementById('a-etape-vide').classList.remove('hidden');
+    document.getElementById('a-etape-active').classList.add('hidden');
     renderChronologie();
-  });
-
-  socket.on('etat:maj', (etat) => {
-    etapeCouranteId = etat.currentEtapeId;
-    if (etatRole === 'admin') {
-      document.getElementById('a-connectes').innerHTML = `👥 Total connectés : <strong>${etat.connectes.total}</strong>` +
-        Object.entries(etat.connectes.parGroupe).map(([gid,n]) => {
-          const g = groupesMap[gid];
-          return ` &nbsp; <span class="groupe-chip" style="background:${g?g.couleur:'#6c757d'}">${g?g.nom:'Sans groupe'} : ${n}</span>`;
-        }).join('');
-      currentParticipantsCache = etat.participants;
-      renderParticipants(etat.participants);
-      renderCompositionGroupes(etat.participants);
-      renderChronologie();
-      if (etapeCouranteId) {
-        document.getElementById('a-non-participants').textContent = etat.nonParticipants.length ? `⚠️ N'ont pas encore saisi : ${etat.nonParticipants.join(', ')}` : '✅ Tout le monde a saisi';
-      }
-      majProgression('a-progression', 'a-progression-txt');
-    } else if (etatRole === 'participant') {
-      document.getElementById('p-connectes').textContent = `👥 ${etat.connectes.total} connecté(s)`;
-      majProgression('p-progression', 'p-progression-txt');
-      const moi = etat.participants.find(p => p.id === participantId);
-      const badge = document.getElementById('p-groupe-badge');
-      if (moi && moi.groupId && groupesMap[moi.groupId]) {
-        badge.textContent = groupesMap[moi.groupId].nom;
-        badge.style.background = groupesMap[moi.groupId].couleur;
-        badge.style.color = '#fff';
-      } else {
-        badge.textContent = 'Sans groupe';
-        badge.style.background = '#e9ecef';
-        badge.style.color = '#495057';
-      }
-    }
-  });
-
-  socket.on('etape:courante', ({ etape, results }) => {
-    etapeCouranteId = etape.id;
-    if (etatRole === 'admin') {
-      document.getElementById('a-etape-vide').classList.add('hidden');
-      document.getElementById('a-etape-active').classList.remove('hidden');
-      document.getElementById('a-titre-etape').textContent = etape.titre;
-      document.getElementById('a-consignes-etape').textContent = etape.consignes;
-      document.getElementById('a-saisies-individuel-wrap').classList.toggle('hidden', etape.type !== 'individuel');
-      if (etape.type === 'individuel') renderSaisiesIndividuelAdmin(results.submissions || {});
-      renderMiseEnCommunAdmin(etape, results);
-    } else {
-      document.getElementById('p-titre-etape').textContent = etape.titre;
-      document.getElementById('p-consignes-etape').textContent = etape.consignes;
-      document.getElementById('p-zone-individuel').classList.toggle('hidden', etape.type !== 'individuel');
-      document.getElementById('p-zone-mise-en-commun').classList.toggle('hidden', etape.type !== 'mise_en_commun');
-      document.getElementById('p-zone-temps-libre').classList.toggle('hidden', etape.type !== 'temps_libre');
-      document.getElementById('p-nouvelle-idee').value = '';
-      if (etape.type === 'mise_en_commun') renderRetenuesParticipant(results.retenues || []);
-      if (etape.type === 'individuel') {
-        const mine = (results.submissions && results.submissions[participantId]) || { items: [] };
-        renderMesIdees(mine.items || []);
-      }
-    }
-  });
-
-  socket.on('timer:tick', ({ timeLeft, total, alerte }) => {
-    const txt = formatTemps(timeLeft);
-    ['timer-affichage', 'timer-affichage-admin'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = txt;
-      el.classList.remove('t-orange', 't-rouge');
-      if (timeLeft <= 120) el.classList.add('t-rouge');
-      else if (timeLeft <= 300) el.classList.add('t-orange');
-      if (alerte) { el.classList.add('alerte'); setTimeout(() => el.classList.remove('alerte'), 600); }
-    });
-  });
-  socket.on('timer:fin', () => {
-    ['timer-affichage', 'timer-affichage-admin'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '⏰ Terminé'; });
-  });
-
-  socket.on('retenues:maj', ({ etapeId, retenues }) => {
-    if (etatRole === 'admin') renderRetenuesAdmin(etapeId, retenues);
-    else renderRetenuesParticipant(retenues);
-  });
-
-  socket.on('saisies:maj', ({ etapeId }) => { if (etatRole === 'admin' && etapeCouranteId === etapeId) refreshSaisiesAdmin(); });
-
-  socket.on('mesIdees:maj', ({ etapeId, items }) => { if (etatRole === 'participant') renderMesIdees(items); });
-
-  socket.on('participant:bienvenue', ({ participantId: pid, sequence }) => {
-    participantId = pid;
-    sessionStorage.setItem('facilitation_participant_id', pid);
-    sequenceCourante = sequence;
-    groupesMap = {}; (sequence.groupes || []).forEach(g => groupesMap[g.id] = g);
-    document.getElementById('p-mon-nom').textContent = monPseudo;
+  } else if (etatRole === 'participant') {
+    const attente = document.getElementById('p-attente-sequence');
+    const carte = document.getElementById('p-carte-etape');
+    if (!sequence) { attente.classList.remove('hidden'); carte.classList.add('hidden'); document.getElementById('p-nom-seq').textContent = ''; return; }
+    attente.classList.add('hidden');
     document.getElementById('p-nom-seq').textContent = sequence.nom;
-    afficherEcran('ecran-session-participant');
-  });
+  }
+});
 
-  socket.on('erreur', (msg) => alert('Erreur : ' + msg));
-}
+socket.on('etat:maj', (etat) => {
+  etapeCouranteId = etat.currentEtapeId;
+  if (etatRole === 'admin') {
+    document.getElementById('a-connectes').innerHTML = `👥 Total connectés : <strong>${etat.connectes.total}</strong>` +
+      Object.entries(etat.connectes.parGroupe).map(([gid,n]) => {
+        const g = groupesMap[gid];
+        return ` &nbsp; <span class="groupe-chip" style="background:${g?g.couleur:'#6c757d'}">${g?g.nom:'Sans groupe'} : ${n}</span>`;
+      }).join('');
+    currentParticipantsCache = etat.participants;
+    renderParticipants(etat.participants);
+    renderCompositionGroupes(etat.participants);
+    renderChronologie();
+    if (etapeCouranteId) {
+      document.getElementById('a-non-participants').textContent = etat.nonParticipants.length ? `⚠️ N'ont pas encore saisi : ${etat.nonParticipants.join(', ')}` : '✅ Tout le monde a saisi';
+    }
+    majProgression('a-progression', 'a-progression-txt');
+  } else if (etatRole === 'participant') {
+    document.getElementById('p-connectes').textContent = `👥 ${etat.connectes.total} connecté(s)`;
+    majProgression('p-progression', 'p-progression-txt');
+    const moi = etat.participants.find(p => p.id === participantId);
+    const badge = document.getElementById('p-groupe-badge');
+    if (moi && moi.groupId && groupesMap[moi.groupId]) {
+      badge.textContent = groupesMap[moi.groupId].nom;
+      badge.style.background = groupesMap[moi.groupId].couleur;
+      badge.style.color = '#fff';
+    } else {
+      badge.textContent = 'Sans groupe';
+      badge.style.background = '#e9ecef';
+      badge.style.color = '#495057';
+    }
+  }
+});
+
+socket.on('etape:courante', ({ etape, results }) => {
+  etapeCouranteId = etape.id;
+  if (etatRole === 'admin') {
+    document.getElementById('a-etape-vide').classList.add('hidden');
+    document.getElementById('a-etape-active').classList.remove('hidden');
+    document.getElementById('a-titre-etape').textContent = etape.titre;
+    document.getElementById('a-consignes-etape').textContent = etape.consignes;
+    document.getElementById('a-saisies-individuel-wrap').classList.toggle('hidden', etape.type !== 'individuel');
+    if (etape.type === 'individuel') renderSaisiesIndividuelAdmin(results.submissions || {});
+    renderMiseEnCommunAdmin(etape, results);
+  } else {
+    document.getElementById('p-carte-etape').classList.remove('hidden');
+    document.getElementById('p-titre-etape').textContent = etape.titre;
+    document.getElementById('p-consignes-etape').textContent = etape.consignes;
+    document.getElementById('p-zone-individuel').classList.toggle('hidden', etape.type !== 'individuel');
+    document.getElementById('p-zone-mise-en-commun').classList.toggle('hidden', etape.type !== 'mise_en_commun');
+    document.getElementById('p-zone-temps-libre').classList.toggle('hidden', etape.type !== 'temps_libre');
+    document.getElementById('p-nouvelle-idee').value = '';
+    if (etape.type === 'mise_en_commun') renderRetenuesParticipant(results.retenues || []);
+    if (etape.type === 'individuel') {
+      const mine = (results.submissions && results.submissions[participantId]) || { items: [] };
+      renderMesIdees(mine.items || []);
+    }
+  }
+});
+
+socket.on('timer:tick', ({ timeLeft, total, alerte }) => {
+  const txt = formatTemps(timeLeft);
+  ['timer-affichage', 'timer-affichage-admin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = txt;
+    el.classList.remove('t-orange', 't-rouge');
+    if (timeLeft <= 120) el.classList.add('t-rouge');
+    else if (timeLeft <= 300) el.classList.add('t-orange');
+    if (alerte) { el.classList.add('alerte'); setTimeout(() => el.classList.remove('alerte'), 600); }
+  });
+});
+socket.on('timer:fin', () => {
+  ['timer-affichage', 'timer-affichage-admin'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '⏰ Terminé'; });
+});
+
+socket.on('retenues:maj', ({ etapeId, retenues }) => {
+  if (etatRole === 'admin') renderRetenuesAdmin(etapeId, retenues);
+  else renderRetenuesParticipant(retenues);
+});
+socket.on('saisies:maj', ({ etapeId }) => { if (etatRole === 'admin' && etapeCouranteId === etapeId) refreshSaisiesAdmin(); });
+socket.on('mesIdees:maj', ({ etapeId, items }) => { if (etatRole === 'participant') renderMesIdees(items); });
+
+socket.on('participant:bienvenue', ({ participantId: pid, sequence }) => {
+  participantId = pid;
+  sessionStorage.setItem('facilitation_participant_id', pid);
+  document.getElementById('p-mon-nom').textContent = monPseudo;
+});
+
+socket.on('erreur', (msg) => alert('Erreur : ' + msg));
 
 function formatTemps(sec) { sec = Math.max(0, sec); const m = Math.floor(sec/60), s = sec%60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
 function majProgression(barId, txtId) {
-  if (!sequenceCourante || !sequenceCourante.etapes || !sequenceCourante.etapes.length) return;
+  if (!sequenceCourante || !sequenceCourante.etapes || !sequenceCourante.etapes.length) { document.getElementById(barId).style.width = '0%'; document.getElementById(txtId).textContent = ''; return; }
   const idx = sequenceCourante.etapes.findIndex(e => e.id === etapeCouranteId);
   const total = sequenceCourante.etapes.length;
   const pct = total ? Math.round(((idx>=0?idx+1:0) / total) * 100) : 0;
@@ -795,12 +765,12 @@ function affecterAuGroupe(groupId) {
   selectionParticipantPourGroupe = null;
 }
 function autoAssignerGroupes() {
-  if (!sequenceCourante.groupes || !sequenceCourante.groupes.length) { alert('Créez au moins un groupe dans l\'édition de la séquence avant de répartir.'); return; }
+  if (!sequenceCourante || !sequenceCourante.groupes || !sequenceCourante.groupes.length) { alert("Créez au moins un groupe dans l'édition de la séquence avant de répartir."); return; }
   socket.emit('admin:groupes:autoAssign');
 }
 function renderCompositionGroupes(participants) {
   const el = document.getElementById('a-composition-groupes');
-  const groupes = sequenceCourante.groupes || [];
+  const groupes = (sequenceCourante && sequenceCourante.groupes) || [];
   if (!groupes.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Aucun groupe défini pour cette séquence.</p>'; return; }
   const connectes = participants.filter(p => p.connected);
   el.innerHTML = groupes.map(g => {
@@ -817,7 +787,8 @@ function renderCompositionGroupes(participants) {
 
 // --- Saisies individuelles en direct (admin) ---
 async function refreshSaisiesAdmin() {
-  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`);
+  if (!sequenceCourante) return;
+  const res = await fetch(`/facilitation/api/sequences/${sequenceCourante.id}`);
   const s = await res.json();
   sequenceCourante.results = s.results;
   const r = s.results[etapeCouranteId] || { submissions: {} };
@@ -854,7 +825,8 @@ function renderMiseEnCommunAdmin(etape, results) {
   refreshMiseEnCommunAdmin();
 }
 async function refreshMiseEnCommunAdmin() {
-  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}`);
+  if (!sequenceCourante) return;
+  const res = await fetch(`/facilitation/api/sequences/${sequenceCourante.id}`);
   const s = await res.json();
   sequenceCourante.results = s.results;
   const r = s.results[etapeCouranteId] || { submissions: {}, retenues: [] };
@@ -894,25 +866,12 @@ function renderRetenuesAdmin(etapeId, retenues) {
 }
 function reordonnerIdee(itemId, direction) { socket.emit('admin:miseEnCommun:reordonner', { etapeId: etapeCouranteId, itemId, direction }); }
 function supprimerIdee(itemId) { socket.emit('admin:miseEnCommun:supprimer', { etapeId: etapeCouranteId, itemId }); }
-
 function renderRetenuesParticipant(retenues) {
   const el = document.getElementById('p-liste-retenues');
   el.innerHTML = (retenues||[]).map(it => `<div class="retenue-item"><span>${it.groupeNom?`<span class="groupe-chip" style="background:#6c757d;">${escHtml(it.groupeNom)}</span> `:''}${escHtml(it.text)}</span></div>`).join('') || '<p style="color:#6c757d; font-size:13px;">Rien pour le moment.</p>';
 }
 
-// ---------------- PARTICIPANT ----------------
-function rejoindreSession() {
-  const code = document.getElementById('input-code-session').value.trim();
-  const pseudo = document.getElementById('input-pseudo-participant').value.trim();
-  if (!code || !pseudo) { alert('Merci de renseigner le code de session et votre pseudo.'); return; }
-  sequenceIdCourante = code;
-  monPseudo = pseudo;
-  etatRole = 'participant';
-  connecterSocket();
-  socket.emit('participant:join', { sequenceId: code, pseudo, participantId });
-}
-
-// --- Mes idées (saisies multiples, modifiables) ---
+// --- Mes idées (participant) ---
 function renderMesIdees(items) {
   const el = document.getElementById('p-mes-idees');
   if (!items || !items.length) { el.innerHTML = '<p style="color:#6c757d; font-size:13px;">Vous n\'avez encore rien saisi.</p>'; return; }
@@ -934,8 +893,9 @@ function supprimerMonIdee(itemId) { socket.emit('participant:supprimerIdee', { e
 
 // ---------------- EMAIL ----------------
 async function envoyerParEmail() {
+  if (!sequenceCourante) return;
   document.getElementById('a-email-statut').textContent = 'Envoi en cours...';
-  const res = await fetch(`/facilitation/api/sequences/${sequenceIdCourante}/envoyer-email`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+  const res = await fetch(`/facilitation/api/sequences/${sequenceCourante.id}/envoyer-email`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
   const data = await res.json();
   document.getElementById('a-email-statut').textContent = data.ok ? '✔ Email envoyé' : ('❌ ' + (data.error || 'Erreur'));
 }
